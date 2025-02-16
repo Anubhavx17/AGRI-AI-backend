@@ -1,0 +1,3 @@
+[rasterio.rio_plugins]
+pointquery = rasterstats.cli:pointquery
+zonalstats = rasterstats.cli:zonalstats
