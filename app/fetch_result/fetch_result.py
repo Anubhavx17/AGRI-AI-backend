@@ -1,6 +1,6 @@
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
-from app.data_models.models import ResultTable  # Import necessary modules and models
+from app.data_models.models import ResultModel  # Import necessary modules and models
 from sqlalchemy import desc
 from minio import Minio
 from minio.error import S3Error
@@ -40,9 +40,9 @@ def fetch_result():
         project_id = data.get('ProjectId')
         # Fetch the latest result for the current user
         latest_result = (
-            ResultTable.query
+            ResultModel.query
             .filter_by(user_id=user_id, project_id=project_id)
-            .order_by(ResultTable.id.desc())  # Order by id in descending order
+            .order_by(ResultModel.id.desc())  # Order by id in descending order
             .first()  # Fetch the first (latest) result
         )
         if not latest_result:

@@ -1,7 +1,7 @@
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from app import db
-from app.data_models.models import User, ProjectDetails,ResultTable
+from app.data_models.models import UserModel, ProjectDetailsModel,ResultModel
 from app.data_models.schemas import ProjectDetailsSchema
 import geopandas as gpd
 from shapely.geometry import shape, Polygon, MultiPolygon
@@ -116,17 +116,17 @@ def get_projects():
     current_user_id = get_jwt_identity()
 
     # Fetch projects for the current user
-    projects = ProjectDetails.query.filter_by(user_id=current_user_id).all()
+    projects = ProjectDetailsModel.query.filter_by(user_id=current_user_id).all()
 
     # Serialize the project details
     schema = ProjectDetailsSchema(many=True)
     project_data = schema.dump(projects)
 
-    # Get the count of project IDs in the ResultTable
+    # Get the count of project IDs in the ResultModel
     project_counts = (
-        db.session.query(ResultTable.project_id, db.func.count(ResultTable.project_id).label('count'))
-        .filter(ResultTable.project_id.in_([project['id'] for project in project_data]))
-        .group_by(ResultTable.project_id)
+        db.session.query(ResultModel.project_id, db.func.count(ResultModel.project_id).label('count'))
+        .filter(ResultModel.project_id.in_([project['id'] for project in project_data]))
+        .group_by(ResultModel.project_id)
         .all()
     )
     # Convert query result to a dictionary for quick lookup
@@ -152,7 +152,7 @@ def save_project():
     print(data)
     save_project_boolean = data.get('save_project')
 
-    existing_project_with_title = ProjectDetails.query.filter_by(
+    existing_project_with_title = ProjectDetailsModel.query.filter_by(
         user_id=current_user_id,
         project_title=data.get('project_title')
     ).first()
@@ -166,7 +166,7 @@ def save_project():
         geojsonString = shp.to_json()
         geojsonList = ast.literal_eval(geojsonString)
 
-        project = ProjectDetails(
+        project = ProjectDetailsModel(
             user_id=current_user_id,
             project_title=data.get('project_title'),
             project_type=data.get('project_type'),
@@ -192,7 +192,7 @@ def delete_all_user_projects():
     current_user_id = get_jwt_identity()
     
     # Query all projects associated with the current user
-    projects = ProjectDetails.query.filter_by(user_id=current_user_id).all()
+    projects = ProjectDetailsModel.query.filter_by(user_id=current_user_id).all()
     
     if not projects:
         return jsonify({"msg": "No projects found for this user.", "deleted": False}), 404
@@ -210,7 +210,7 @@ def delete_all_user_projects():
 @jwt_required()  # Optional: Only allow authenticated users to perform this action
 def delete_all_projects():
     # Query all projects
-    projects = ProjectDetails.query.all()
+    projects = ProjectDetailsModel.query.all()
     
     if not projects:
         return jsonify({"msg": "No projects found.", "deleted": False}), 404

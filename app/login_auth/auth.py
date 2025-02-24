@@ -1,7 +1,7 @@
 from flask import Blueprint, request, jsonify, url_for, current_app, redirect
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
 from app import db
-from app.data_models.models import User
+from app.data_models.models import UserModel
 import jwt as pyjwt
 from datetime import timedelta
 from .email import send_registration_link,send_reset_password_link
@@ -17,7 +17,7 @@ def register():
         password = data.get('password')
 
         # Check if the email already exists in the database
-        existing_user = User.query.filter_by(email=email).first()
+        existing_user = UserModel.query.filter_by(email=email).first()
 
         if existing_user:
             if not existing_user.confirmed:
@@ -26,7 +26,7 @@ def register():
             return jsonify({"msg": "Email already registered"}), 201  # Email exists and confirmed
 
         # Create a new user instance
-        user = User(name=name, email=email)
+        user = UserModel(name=name, email=email)
         user.set_password(password)
 
         # Add the user to the database
@@ -57,7 +57,7 @@ def confirm_email(token):
         user_id = pyjwt.decode(token, current_app.config['JWT_SECRET_KEY'], algorithms=["HS256"])['sub']
         
         # Find the user by ID
-        user = User.query.get(user_id)
+        user = UserModel.query.get(user_id)
         
         # Check if the user exists
         if not user:
@@ -91,7 +91,7 @@ def login():
     password = data.get('password')
 
     # Check if the user exists
-    user = User.query.filter_by(email=email).first()
+    user = UserModel.query.filter_by(email=email).first()
 
     if user is None:
         return jsonify({"msg": "Email does not exist!"}), 201  # Unauthorized status code
@@ -121,7 +121,7 @@ def forgot_password():
         email = data.get('email')
 
         # Check if the user exists
-        user = User.query.filter_by(email=email).first()
+        user = UserModel.query.filter_by(email=email).first()
 
         if user is None:
             return jsonify({"msg": "Email does not exist!"}), 201  # Unauthorized status code
@@ -154,7 +154,7 @@ def reset_password(token):
         user_id = pyjwt.decode(token, current_app.config['JWT_SECRET_KEY'], algorithms=["HS256"])['sub']
 
         # Find the user by ID
-        user = User.query.get(user_id)
+        user = UserModel.query.get(user_id)
 
         if not user:
             return jsonify({"msg": "Invalid or expired reset link"}), 201
@@ -178,5 +178,5 @@ def reset_password(token):
 @jwt_required()
 def get_projects():
     user_id = get_jwt_identity()
-    user = User.query.get(user_id)
+    user = UserModel.query.get(user_id)
     return jsonify({"name": user.name,"email": user.email}), 200

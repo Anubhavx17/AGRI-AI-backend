@@ -19,8 +19,9 @@ from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from shapely.geometry import shape, Polygon, MultiPolygon
 from app import db
-from app.data_models.models import User, CropStressGraphModel,ResultTable
+from app.data_models.models import UserModel, GraphModel,ResultModel
 from app.data_models.schemas import CropStressGraphModelSchema
+from app.main.helpers.result_table_helpers import result_already_exists
 from osgeo import gdal
 import time
 from rio_viz.app import Client
@@ -75,7 +76,7 @@ def upload_file_to_bucket(file_obj, file_name):
 
 def update_or_upload_files(result_id, tiff_local_path, excel_local_path):
     """
-    Uploads TIFF and Excel files to the storage and updates the ResultTable entry.
+    Uploads TIFF and Excel files to the storage and updates the ResultModel entry.
 
     Args:
     - result_id: The ID of the result entry in the database.
@@ -104,15 +105,13 @@ def create_result_entry(user_id, tiff_local_path, excel_local_path,tiff_min_max,
     tiff_min_max_str = np.array2string(tiff_min_max, separator=',')
 
     # geojson_str = json.dumps(geojson) if isinstance(geojson, dict) else geojson
-
     # # Check if an entry with the same selected_date, selected_parameter, and geojson already exists
-    # existing_result = ResultTable.query.filter(
-    #     ResultTable.selected_date == selected_date,
-    #     ResultTable.selected_parameter == selected_parameter,
-    #     ResultTable.project_id == project_id,
-    #     # cast(ResultTable.geojson, String) == geojson_str  # Compare with the JSON string representation
+    # existing_result = ResultModel.query.filter(
+    #     ResultModel.selected_date == selected_date,
+    #     ResultModel.selected_parameter == selected_parameter,
+    #     ResultModel.project_id == project_id,
+    #     # cast(ResultModel.geojson, String) == geojson_str  # Compare with the JSON string representation
     # ).first()
-    
     # if existing_result:
     #     # If an existing entry is found, update its min_max field
     #     # existing_result.tiff_min_max = tiff_min_max_str
@@ -127,11 +126,8 @@ def create_result_entry(user_id, tiff_local_path, excel_local_path,tiff_min_max,
     #     # print("Entry exists, updated tiff_min_max, TIFF, and Excel.")
     #     return existing_result.id
     
-     
-    
-
-    # Step 1: Create an entry in the ResultTable
-    new_result = ResultTable(user_id=user_id, tiff='', excel='', tiff_min_max=tiff_min_max_str,redsi_min_max=redsi_min_max_str, selected_date=selected_date, selected_parameter=selected_parameter,
+    # Step 1: Create an entry in the ResultModel
+    new_result = ResultModel(user_id=user_id, tiff='', excel='', tiff_min_max=tiff_min_max_str,redsi_min_max=redsi_min_max_str, selected_date=selected_date, selected_parameter=selected_parameter,
                               geojson =geojson,project_id=project_id)  # Store as a string
     db.session.add(new_result)
     db.session.commit()  # Commit to get the auto-incremented ID
@@ -152,7 +148,7 @@ def create_result_entry(user_id, tiff_local_path, excel_local_path,tiff_min_max,
     with open(excel_local_path, "rb") as excel_file:
         excel_url = upload_file_to_bucket(excel_file, excel_filename)
 
-    # Step 5: Update the ResultTable entry with the URLs
+    # Step 5: Update the ResultModel entry with the URLs
     new_result.tiff = tiff_url
     new_result.excel = excel_url
     db.session.commit()
@@ -214,8 +210,11 @@ def get_tiff_data():
     user_id = get_jwt_identity()
     project_id = data.get('project_id')
     tiff_data = []
-    results = ResultTable.query.filter_by(user_id=user_id, project_id=project_id).all()
-    
+    results = ResultModel.query.filter_by(user_id=user_id, project_id=project_id).all()
+
+    ## request also has to include the parameter as well, so that only that parameters results IN THAT PROJECT is fetched and initialized
+    ## or maybe we can initialize parameter wise for a project
+
     for result in results:
         presigned_tiff_url = get_presigned_url(BUCKET_NAME, f"{result.id}.tiff")
         tiff_data.append({
@@ -255,38 +254,6 @@ def get_tiff_path():
     else:
         return jsonify({"error": "Failed to fetch client info"}), 500
 
-
-
-def result_already_exists(selected_date, selected_parameter, project_id, user_id):
-    try:
-        existing_result = ResultTable.query.filter(
-            ResultTable.selected_date == selected_date,
-            ResultTable.selected_parameter == selected_parameter,
-            ResultTable.project_id == project_id,
-            ResultTable.user_id == user_id
-        ).first()
-    
-        if existing_result:
-            print("Result already exists for the provided parameters.")
-            response_data = {
-            "id": existing_result.id,
-            "tiff_url": get_presigned_url(BUCKET_NAME, f"{existing_result.id}.tiff"),
-            "excel_url": get_presigned_url(BUCKET_NAME, f"{existing_result.id}.xlsx"),
-            "tiff_min_max": existing_result.tiff_min_max,
-            "redsi_min_max": existing_result.redsi_min_max,
-            "geojson": existing_result.geojson,
-            "legend_quantile":existing_result.legend_quantile
-            }
-            print("Response data prepared and sent.")
-            return jsonify(response_data), 200
-        else:
-            return None  # Explicitly return None if no result is found
-
-    except Exception as e:
-        print(f"Error while checking existing results: {e}")
-        return jsonify({"error": "Internal server error while checking existing results"}), 500
-
-
     
     
 ### MAIN FUNCTION
@@ -324,11 +291,10 @@ def main():
     ## Now for the entire process (the result), create a entry in db
     result_id = create_result_entry(user_id, redsi_path, excel_path, tiff_min_max, redsi_min_max,data.get('date'), data.get('selectedParameter'), data.get('GeojsonData'),project_id,temp_df)
     
-    result_entry = ResultTable.query.get(result_id)
+    result_entry = ResultModel.query.get(result_id)
     
     if not result_entry:
         return jsonify({ "dataSaved": False,"error": "Could not find the result entry, pls try again"}), 200
-    
    
     # Prepare the response data
     response_data = {
@@ -359,15 +325,15 @@ def clean_json_data(data):
 @jwt_required()
 def save_results(data,result_id):
     """
-    Saves the result data into the CropStressGraphModel.
+    Saves the result data into the GraphModel.
 
     Args:
-    - data: A dictionary containing the fields required to save to the CropStressGraphModel.
+    - data: A dictionary containing the fields required to save to the GraphModel.
 
     Returns:
     - A success message.
     """
-    existing_entry = CropStressGraphModel.query.filter_by(
+    existing_entry = GraphModel.query.filter_by(
         unique_farm_id=data.get('unique_farm_id'),
         selected_date=data.get('selected_date'),
         selected_parameter=data.get('selected_parameter'),
@@ -379,7 +345,6 @@ def save_results(data,result_id):
         print("Entry already exists, no new record created")
         return jsonify({"msg": "Entry already exists, no new record created", "projectSaved": False}), 201
 
-
     current_user_id = get_jwt_identity()
     cleaned_result_details = clean_json_data(data.get('result_details'))
     cleaned_geojson = clean_json_data(data.get('geojson'))
@@ -388,8 +353,7 @@ def save_results(data,result_id):
     # Convert cleaned_result_details to a JSON string
     result_details_str = json.dumps(cleaned_result_details)
 
-    
-    stress_result = CropStressGraphModel(
+    stress_result = GraphModel(
         unique_farm_id=data.get('unique_farm_id'),
         user_id=current_user_id,
         # geojson=data.get('geojson'),
@@ -515,7 +479,7 @@ def fetch_results():
     unique_farm_id = data.get('unique_farm_id')
 
     # Query the database for the requested farm and the current user
-    results = CropStressGraphModel.query.filter_by(
+    results = GraphModel.query.filter_by(
         unique_farm_id=unique_farm_id,
         user_id=current_user_id
     ).all()
@@ -1101,7 +1065,7 @@ def growth_phase_calc(crop, input_date, geojson_data):
         for date_range, stage in growth_phase_dict.items():
             start_date, end_date = map(parse_date, date_range)
             if start_date <= input_date <= end_date:
-                stage_dict[geojson_data['PLOT_NO'][i]] = stage
+                stage_dict[geojson_data['FARM_ID'][i]] = stage
 
     print("Growth stage dictionary created")
 
@@ -1112,7 +1076,7 @@ def growth_phase_calc(crop, input_date, geojson_data):
 def ratoon_dict_calc(geojson_data):
     ratoon_dict = {}
     for i in range(len(geojson_data)):
-        ratoon_dict[geojson_data['PLOT_NO'][i]] = geojson_data['TYPE'][i]
+        ratoon_dict[geojson_data['FARM_ID'][i]] = geojson_data['TYPE'][i]
 
     return ratoon_dict
 
@@ -1357,7 +1321,7 @@ def zonal_stats_calc(geojson_data, path):
 
     stats_mean_dict = {}
     for i in range(len(stats)):
-        stats_mean_dict[stats[i]['properties']['PLOT_NO']] = stats[i]['properties']['mean']
+        stats_mean_dict[stats[i]['properties']['FARM_ID']] = stats[i]['properties']['mean']
 
     print("Zonal Stats calculated")
 
@@ -1497,8 +1461,8 @@ def generate_custom_dataframe(final_df, input_date, parameter):
     # Create a new dataframe with the required columns
     temp_df = pd.DataFrame()
 
-    # Create the Unique_ID column (assuming PLOT_NO is used as a unique identifier)
-    temp_df['Unique_ID'] = final_df['PLOT_NO']
+    # Create the Unique_ID column (assuming FARM_ID is used as a unique identifier)
+    temp_df['Unique_ID'] = final_df['FARM_ID'] ## became farm id now
 
     # Create the Result column by combining REDSI and INFERENCE
     temp_df['Result'] = final_df.apply(lambda row: f"REDSI: {row['REDSI']}, INFERENCE: {row['INFERENCE']}", axis=1)
