@@ -37,7 +37,7 @@ from sqlalchemy import cast, String,text
 warnings.filterwarnings("ignore")
 from rasterio.io import MemoryFile
 # Create a Blueprint for the date fetching routes
-crop_stress_bp = Blueprint('stress_calculation_testing', __name__)
+crop_stress_bp = Blueprint('crop_stress_api', __name__)
 crop_stress_graph_schema = CropStressGraphModelSchema(many=True)
 
 eos_client = Minio(
@@ -202,62 +202,155 @@ def get_presigned_url(bucket_name, object_name, expiration=timedelta(hours=1)):
 #     else:
 #         return jsonify({"error": "Failed to fetch client info"}), 500
 
-@crop_stress_bp.route('/get_tiff_data', methods=['POST'])
+# Step 1 - I first initialize the clients for that user and project using the port_id(which i generated from the result_id, which is
+# always unique) and Then I fetch all the clients for that user, project, parameter and send in frontend
+# Step 2 - If a parameter or date changes i simply make changes in frontend from clients
+# Step 3 - Shutting down clients functionality (can use a flag in db to set and unset for seeing active or not)
+
+# @crop_stress_bp.route('/api/initialize_clients', methods=['POST'])
+# @jwt_required()
+# def intialize_clients_function():
+#     data = request.get_json()
+#     user_id = get_jwt_identity()
+#     project_id = data.get('project_id')
+
+#     results = ResultModel.query.filter_by(user_id=user_id, project_id=project_id).all()
+
+#     clients = [] # I dont need to store the clients, i already have the port from port_id
+
+#     for result in results:
+#         presigned_tiff_url = get_presigned_url(BUCKET_NAME, f"{result.id}.tiff")
+#         clients.append({'tiff_url': presigned_tiff_url,'port_id': result.port_id})
+
+
+#     try:
+#         response = requests.post("http://127.0.0.1:5001/initialize_clients", json=clients, timeout=10)
+#         response.raise_for_status()  # Raises an error for HTTP failures
+#         print("Clients initialized successfully.")
+#     except requests.exceptions.RequestException as e:
+#         print(f"Error initializing clients: {e}")
+#         return jsonify({"error": "Failed to initialize clients"}), 500
+
+
+    
+#     ## Now that clients are initialized, send their informations AND CLIENT(tile_url), the combination in which 
+#     # it needs to displayed will be done in frontend
+
+#     for result in results:
+#         presigned_tiff_url = get_presigned_url(BUCKET_NAME, f"{result.id}.tiff")
+#         presigned_excel_url = get_presigned_url(BUCKET_NAME, f"{result.id}.xlsx")
+#         clients.append({
+#             'selected_date': result.selected_date,
+#             'tiff_url': presigned_tiff_url,
+#             'tiff_min_max': result.tiff_min_max,
+#             'excel_url':presigned_excel_url,
+#             'selected_parameter':result.selected_parameter,
+#             'tile_url' : (
+#             f"http://127.0.0.1:{result.port_id}/tiles/{{z}}/{{x}}/{{y}}.png"
+#             f"?nodata=0&colormap_name=hsv&rescale={result.tiff_min_max}")
+#         })
+    
+#     return jsonify(clients)
+
+## a function to shutdown the client
+
+
+# @crop_stress_bp.route('/api/fetch_clients', methods=['POST'])
+# @jwt_required()
+# def fetch_clients_function():
+#     start_time = time.time()  # Start the timer
+
+#     data = request.get_json()
+#     user_id = get_jwt_identity()
+#     selected_parameter = data.get('selected_parameter')
+#     project_id = data.get('project_id')
+
+#     results = ResultModel.query.filter_by(user_id=user_id, project_id=project_id,
+#     selected_parameter=selected_parameter).all()
+
+#     tiff_data = []
+    
+#     for result in results:
+#         presigned_tiff_url = get_presigned_url(BUCKET_NAME, f"{result.id}.tiff")
+#         tiff_data.append({
+#             'selected_date': result.selected_date,
+#             'tiff_url': presigned_tiff_url,
+#             'tiff_min_max': result.tiff_min_max,
+#             'tile_url' : (
+#             f"http://127.0.0.1:{result.port_id}/tiles/{{z}}/{{x}}/{{y}}.png"
+#             f"?nodata=0&colormap_name=hsv&rescale={result.tiff_min_max}")
+#         })
+    
+#     return jsonify(tiff_data)
+
+## SQL for now those tiffs for that parameter user_id and porject_id
+# @crop_stress_bp.route("/api/change_tiff", methods=["POST"])
+# @jwt_required()
+# def get_tiff_path():
+#     data = request.get_json()
+#     selected_date = data.get("selected_date")
+#     selected_parameter = data.get("selected_parameter")
+#     user_id = data.get("user_id")
+
+#     key = (user_id, selected_date, selected_parameter) # Unique Key
+# ##  sql query to fetch clients of that
+#     response = requests.post("http://127.0.0.1:5001/get_client_port", json={"key": key})
+    
+#     if response.ok:
+#         client_info = response.json()
+#         port = client_info.get("port")
+#         tiff_min_max = client_info.get("tiff_min_max")
+#         tile_url = (
+#             f"http://127.0.0.1:{port}/tiles/{{z}}/{{x}}/{{y}}.png"
+#             f"?nodata=0&colormap_name=hsv&rescale={tiff_min_max}"
+#         )
+       
+#         return jsonify({"tile_url": tile_url, "tiff_min_max": tiff_min_max})
+#     else:
+#         return jsonify({"error": "Failed to fetch client info"}), 500
+
+
+@crop_stress_bp.route('/send_all_result_data', methods=['POST'])
 @jwt_required()
-def get_tiff_data():
-    start_time = time.time()  # Start the timer
+def initialize_clients():
     data = request.get_json()
     user_id = get_jwt_identity()
     project_id = data.get('project_id')
-    tiff_data = []
-    results = ResultModel.query.filter_by(user_id=user_id, project_id=project_id).all()
 
-    ## request also has to include the parameter as well, so that only that parameters results IN THAT PROJECT is fetched and initialized
-    ## or maybe we can initialize parameter wise for a project
+    results = ResultModel.query.filter_by(user_id=user_id, project_id=project_id).all()
+    clients = []
 
     for result in results:
         presigned_tiff_url = get_presigned_url(BUCKET_NAME, f"{result.id}.tiff")
-        tiff_data.append({
+        presigned_excel_url = get_presigned_url(BUCKET_NAME, f"{result.id}.xlsx")
+
+        clients.append({
             'selected_date': result.selected_date,
             'tiff_url': presigned_tiff_url,
             'tiff_min_max': result.tiff_min_max,
-            'legend_quantile': result.legend_quantile
+            'excel_url': presigned_excel_url,
+            'selected_parameter': result.selected_parameter,
+            "geojson": result.geojson,
+            "port_id":result.port_id,
+            # 'tile_url': f"http://127.0.0.1:{result.port_id}/tiles/{{z}}/{{x}}/{{y}}.png"
+            #             f"?nodata=0&colormap_name=hsv&rescale=[0,1]"
+            'tile_url': f"http://127.0.0.1:{result.port_id}/tiles/{{z}}/{{x}}/{{y}}.png"
+                             f"?nodata=0&colormap_name=hsv&rescale={result.tiff_min_max}"
         })
 
-    response = requests.post("http://127.0.0.1:5001/initialize", json=tiff_data)
-    if response.ok:
-        print("Clients initialized successfully.")
-    else:
-        print("Error initializing clients:", response.json())
-    
-    end_time = time.time()  # End the timer
-    print(f"Time taken for /get_tiff_data endpoint: {end_time - start_time:.2f} seconds")
-    
-    return jsonify(tiff_data)
+    # try:
+    #     response = requests.post("http://127.0.0.1:5001/initialize_clients", json=clients, timeout=30)
+    #     response.raise_for_status()
+    #     print("Clients initialized successfully.")
+    # except requests.exceptions.RequestException as e:
+    #     print(f"Error initializing clients: {e}")
+    #     return jsonify({"error": "Failed to initialize clients"}), 500
 
-@crop_stress_bp.route("/api/load_tiff", methods=["POST"])
-@jwt_required()
-def get_tiff_path():
-    data = request.get_json()
-    selected_date = data.get("selected_date")
-    response = requests.post("http://127.0.0.1:5001/get_client_port", json={"selected_date": selected_date})
-    if response.ok:
-        client_info = response.json()
-        port = client_info.get("port")
-        tiff_min_max = client_info.get("tiff_min_max")
-        tile_url = (
-            f"http://127.0.0.1:{port}/tiles/{{z}}/{{x}}/{{y}}.png"
-            f"?nodata=0&colormap_name=hsv&rescale={tiff_min_max}"
-        )
-       
-        return jsonify({"tile_url": tile_url, "tiff_min_max": tiff_min_max})
-    else:
-        return jsonify({"error": "Failed to fetch client info"}), 500
+    return jsonify(clients)
 
-    
     
 ### MAIN FUNCTION
-@crop_stress_bp.route('/stress_calculation_testing', methods=['POST'])
+@crop_stress_bp.route('/crop_stress_api', methods=['POST'])
 @jwt_required()
 def main():
 
@@ -304,7 +397,6 @@ def main():
         "tiff_url": get_presigned_url(BUCKET_NAME, f"{result_entry.id}.tiff"),
         "excel_url": get_presigned_url(BUCKET_NAME, f"{result_entry.id}.xlsx"),
         "tiff_min_max" : result_entry.tiff_min_max,
-        "redsi_min_max" :result_entry.redsi_min_max,
         "geojson" :result_entry.geojson
     }
     print("response data sent")
@@ -370,32 +462,24 @@ def save_results(data,result_id):
     return jsonify({"msg": "Project saved successfully!", "projectSaved": True}), 201
 
 def centroidForZoom(geojson_data):
-    """
-    Calculate the centroid of a given GeoJSON feature.
+    # Ensure geojson_data is a dictionary, not a string
+    if isinstance(geojson_data, str):
+        geojson_data = json.loads(geojson_data)
+
+    # Convert coordinates from strings to floats (if necessary)
+    geojson_data["geometry"]["coordinates"] = [
+        [[float(lon), float(lat)] for lon, lat in polygon]
+        for polygon in geojson_data["geometry"]["coordinates"]
+    ]
+
+    # Convert GeoJSON to a Shapely Polygon
+    polygon = shape(geojson_data["geometry"])
     
-    Args:
-    - geojson_data: A dictionary containing the GeoJSON feature data.
+    # Get the centroid
+    centroid = polygon.centroid
 
-    Returns:
-    - A dictionary containing the latitude and longitude of the centroid, or None if not applicable.
-    """
-    try:
-        # Convert the GeoJSON geometry to a shapely geometry object
-        geometry = shape(geojson_data['geometry'])
-
-        # Check if the geometry is valid and not empty
-        if geometry.is_valid and not geometry.is_empty:
-            # Calculate the centroid
-            centroid = geometry.centroid
-            return {'latitude': centroid.y, 'longitude': centroid.x}
-        else:
-            print("Warning: Invalid or empty geometry found.")
-            return None
-
-    except Exception as e:
-        print(f"Error processing geometry. Error: {e}")
-        return None
-
+    # Return in required format
+    return {"latitude": centroid.y, "longitude": centroid.x}
 def calculate_quantile_breaks_skip_zeros(raster_path):
     """
     Calculate quantile breaks for a raster file, excluding zero pixel values.

@@ -2,7 +2,7 @@ from datetime import datetime
 from app import db
 from werkzeug.security import generate_password_hash, check_password_hash
 from sqlalchemy.dialects.postgresql import JSON
-
+from sqlalchemy.ext.hybrid import hybrid_property
 
 
 #                               TRUNCATE TABLE public.crop_stress_graph_model CASCADE; ALTER SEQUENCE crop_stress_graph_model_id_seq RESTART WITH 1;
@@ -71,3 +71,8 @@ class ResultModel(db.Model):
     geojson = db.Column(db.JSON, nullable=False)
 
     graph = db.relationship('GraphModel', backref='result_table', lazy=True)
+    
+    @hybrid_property
+    def port_id(self):
+        """Dynamically compute port as 8081 + id"""
+        return 8081 + self.id

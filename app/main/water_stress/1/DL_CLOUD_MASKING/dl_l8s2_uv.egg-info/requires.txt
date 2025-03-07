@@ -1,0 +1,7 @@
+numpy
+lxml
+spectral
+luigi
+h5py
+rasterio
+shapely

@@ -19,18 +19,18 @@ def result_already_exists(selected_date, selected_parameter, project_id, user_id
         ).first()
     
         if existing_result:
-            print("Result already exists for the provided parameters.")
-            response_data = {
-            "id": existing_result.id,
-            "tiff_url": get_presigned_url(BUCKET_NAME, f"{existing_result.id}.tiff"),
-            "excel_url": get_presigned_url(BUCKET_NAME, f"{existing_result.id}.xlsx"),
-            "tiff_min_max": existing_result.tiff_min_max,
-            "redsi_min_max": existing_result.redsi_min_max,
-            "geojson": existing_result.geojson,
-            "legend_quantile":existing_result.legend_quantile
-            }
+            # print("Result already exists for the provided parameters.")
+            # response_data = {
+            # "id": existing_result.id,
+            # "tiff_url": get_presigned_url(BUCKET_NAME, f"{existing_result.id}.tiff"),
+            # "excel_url": get_presigned_url(BUCKET_NAME, f"{existing_result.id}.xlsx"),
+            # "tiff_min_max": existing_result.tiff_min_max,
+            # "redsi_min_max": existing_result.redsi_min_max,
+            # "geojson": existing_result.geojson,
+            # "legend_quantile":existing_result.legend_quantile
+            # }
             print("Response data prepared and sent.")
-            return jsonify(response_data), 200
+            return jsonify(True), 200
         else:
             return None  # Explicitly return None if no result is found
 

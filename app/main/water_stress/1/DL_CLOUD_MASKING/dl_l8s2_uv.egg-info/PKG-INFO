@@ -1,0 +1,14 @@
+Metadata-Version: 2.1
+Name: dl_l8s2_uv
+Version: 0.1
+Summary: Cloud masking of Landsat-8 and Sentinel-2 based on Deep Learning
+Author: Dan Lopez Puigdollers
+Author-email: dan.lopez@uv.es
+License-File: LICENSE
+Requires-Dist: numpy
+Requires-Dist: lxml
+Requires-Dist: spectral
+Requires-Dist: luigi
+Requires-Dist: h5py
+Requires-Dist: rasterio
+Requires-Dist: shapely
