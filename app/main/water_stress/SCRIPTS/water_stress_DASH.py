@@ -1,32 +1,27 @@
-print("water-stress-script")
-
-import sys
-sys.path.append(r'C:\\Users\\ANUBHAV\\OneDrive\\Desktop\\AGRI_DCM\\backend\\app\\main\\water_stress\\DL_CLOUD_MASKING')
 import os
 from dotenv import load_dotenv
 import geopandas as gpd
 import pandas as pd
 import numpy as np
-from sentinelhub import CRS as sentinelCRS, BBox, DataCollection, MimeType, WcsRequest, CustomUrlParam
+from sentinelhub import CRS as sentinelCRS, BBox, SHConfig
 import rasterio
 from rasterio.crs import CRS as rasterioCRS
-from rasterstats import zonal_stats
 from datetime import datetime, timedelta
 import time
 import math
 import csv
 import requests
-import json
 from scipy.constants import Stefan_Boltzmann
 import rasterio.mask
 from app.main.water_stress.DL_CLOUD_MASKING.dl_l8s2_uv import utils
 from app.main.water_stress.DL_CLOUD_MASKING.dl_l8s2_uv.satreaders import l8image
 import shutil
 import warnings
-from app.main.water_stress.SCRIPTT.landsat8 import*
-from app.main.water_stress.SCRIPTT.utils import *
+from app.main.water_stress.SCRIPTS.landsat8 import *
+from app.main.water_stress.SCRIPTS.utils import *
 from app.main.helpers.graph_table_helpers import generate_custom_dataframe,save_temp_df_to_db
 from app.main.helpers.result_table_helpers import create_result_entry
+from flask import current_app as app
 
 warnings.filterwarnings("ignore")
 
@@ -34,12 +29,6 @@ warnings.filterwarnings("ignore")
 ### INPUT DATA
 
 def input_data(data):
-
-    # input_date = data['date']
-    # input_date = datetime.fromisoformat(input_date.replace('Z', '+00:00'))
-    # input_date = input_date.date().isoformat()
-    # input_date = input_date.split("T")[0]
-    # input_datetime_string = f"{input_date}T00:00:00Z\\{input_date}T23:59:59Z"
     input_date = data['date']
     input_date_obj = None
     input_date_obj = datetime.strptime(input_date, "%d/%m/%Y")
@@ -55,25 +44,33 @@ def input_data(data):
     geojson_data = dict_to_gdf(data.get('GeojsonData'))
     selected_parameter = data.get('selectedParameter')
   
-    return geojson_data_dict,geojson_data,input_date_str, input_datetime_string, crop, selected_parameter,
-
-### LOADING SENTINEL HUB CONFIGURATION
-
-load_dotenv(r'C:\\Users\\ANUBHAV\\OneDrive\\Desktop\\AGRI_DCM\\backend\\.env')
-instance_id = os.getenv('SENTINEL_LANDSAT8_ID')
-client_id = os.getenv('SENTINEL_CLIENT_ID')
-client_secret = os.getenv('SENTINEL_CLIENT_SECRET')
-openweather_apikey = os.getenv('OPENWEATHER_API_KEY')
+    return geojson_data_dict, geojson_data, input_date_str, input_datetime_string, crop, selected_parameter
 
 
-### SENTINEL HUB INSTANCE INFORMATION
+### SENTINEL HUB CONFIG SETUP
 
-from sentinelhub import SHConfig
-config = SHConfig()
-config.instance_id = instance_id
-config.sh_client_id = client_id
-config.sh_client_secret = client_secret
-config.save()
+def setup():
+    instance_id = app.config['LANDSAT8_ID']
+    client_id = app.config['CLIENT_ID']
+    client_secret = app.config['CLIENT_SECRET']
+    openweather_apikey = app.config['OPENWEATHER_API_KEY']
+    instance_setup = {
+        'INSTANCE_ID' : instance_id, 
+        'CLIENT_ID' : client_id,
+        'CLIENT_SECRET' : client_secret,
+        'OPENWEATHER_APIKEY' : openweather_apikey
+    }
+
+    config = SHConfig()
+    print("SentinelHub Configuration:", config)
+    config.instance_id = instance_id
+    config.sh_client_id = client_id
+    config.sh_client_secret = client_secret
+    config.save()
+
+    print("Config file created")
+
+    return config, instance_setup
 
 
 ### DEFINING BOUNDING BOX
@@ -102,31 +99,31 @@ def LAI_calc(SAVI):
 ### SENTINEL DATA DICTINOARY
 
 def sentinel_data_dict(bbox, input_date, extent):
-    band2_ref = band2_reflectance_call(bbox, input_date)
-    bqa = bqa_layer_call(bbox, input_date)
-    NDVI = NDVI_layer_call(bbox, input_date)
-    SAVI = SAVI_layer_call(bbox, input_date)
+    config, _ = setup()
+    B02 = band2_reflectance_call(bbox, input_date, config)
+    bqa = bqa_layer_call(bbox, input_date, config)
+    NDVI = NDVI_layer_call(bbox, input_date, config)
+    SAVI = SAVI_layer_call(bbox, input_date, config)
     LAI = LAI_calc(SAVI)
-    band2_ref = band2_reflectance_call(bbox, input_date)
-    band3_ref = band3_reflectance_call(bbox, input_date)
-    band4_ref = band4_reflectance_call(bbox, input_date)
-    band5_ref = band5_reflectance_call(bbox, input_date)
-    band6_ref = band6_reflectance_call(bbox, input_date)
-    band7_ref = band7_reflectance_call(bbox, input_date)
-    band10_BT = band10_bt_call(bbox, input_date)
-    dem = dem_layer_call(bbox, input_date)
+    B03 = band3_reflectance_call(bbox, input_date, config)
+    B04 = band4_reflectance_call(bbox, input_date, config)
+    B05 = band5_reflectance_call(bbox, input_date, config)
+    B06 = band6_reflectance_call(bbox, input_date, config)
+    B07 = band7_reflectance_call(bbox, input_date, config)
+    B10_BT = band10_bt_call(bbox, input_date, config)
+    dem = dem_layer_call(bbox, input_date, config)
 
     sentinel_data = {
         'NDVI' : NDVI,
         'SAVI' : SAVI,
         'LAI' : LAI,
-        'BAND2_REF' : band2_ref,
-        'BAND3_REF' : band3_ref, 
-        'BAND4_REF' : band4_ref,
-        'BAND5_REF' : band5_ref,
-        'BAND6_REF' : band6_ref,
-        'BAND7_REF' : band7_ref,
-        'BAND10_BT' : band10_BT,
+        'B02' : B02,
+        'B03' : B03, 
+        'B04' : B04,
+        'B05' : B05,
+        'B06' : B06,
+        'B07' : B07,
+        'B10_BT' : B10_BT,
         'BQA' : bqa,
         'DEM' : dem
     }
@@ -156,7 +153,7 @@ def fvc_calc(sentinel_data):
 
 def es_calc(sentinel_data):
     NDVI = sentinel_data['NDVI']
-    band4_ref = sentinel_data['BAND4_REF']
+    B04 = sentinel_data['B04']
     fvc = fvc_calc(sentinel_data)
     Ev = 0.989           ## VEGETATION EMISSIVITY
     Es = 0.977           ## SOIL EMISSIVITY
@@ -167,7 +164,7 @@ def es_calc(sentinel_data):
         row = []
         for j in range(len(NDVI[i])):
             if NDVI[i][j] < 0.2:
-                row.append(0.979 - (0.046 * band4_ref[i][j]))
+                row.append(0.979 - (0.046 * B04[i][j]))
             elif NDVI[i][j] <= 0.5 and NDVI[i][j] >= 0.2:
                 row.append((Ev * fvc[i][j]) + (Es * (1 - fvc[i][j])) + C[i][j])
             elif NDVI[i][j] > 0.5:
@@ -184,11 +181,11 @@ def es_calc(sentinel_data):
 ### LST CALCULATIONS
 
 def lst_calc(sentinel_data):
-    band10_BT = sentinel_data['BAND10_BT']
+    B10_BT = sentinel_data['B10_BT']
     ES = es_calc(sentinel_data)
     wavelength = 10.895     ## AVERAGE WAVELENGTH OF BAND 10 (um)
     lst_const = 14388       ## (PLANCK CONSTANT * VELOCITY OF LIGHT) / BOLTZMANN CONSTANT
-    LST = band10_BT / (1 + (((wavelength * band10_BT) / lst_const) * np.log(ES)))
+    LST = B10_BT / (1 + (((wavelength * B10_BT) / lst_const) * np.log(ES)))
 
     print("LST calculated")
     
@@ -198,19 +195,19 @@ def lst_calc(sentinel_data):
 ### WEIGHTED ALBEDO CALCULATIONS
 
 def wta_calc(sentinel_data):
-    band2_ref = sentinel_data['BAND2_REF']
-    band3_ref = sentinel_data['BAND3_REF']
-    band4_ref = sentinel_data['BAND4_REF']
-    band5_ref = sentinel_data['BAND5_REF']
-    band6_ref = sentinel_data['BAND6_REF']
-    band7_ref = sentinel_data['BAND7_REF']
+    B02 = sentinel_data['B02']
+    B03 = sentinel_data['B03']
+    B04 = sentinel_data['B04']
+    B05 = sentinel_data['B05']
+    B06 = sentinel_data['B06']
+    B07 = sentinel_data['B07']
     w1 = 0.356 #0.301297899     ## WEIGHT FOR BAND 2 REFLACTANCE (0.356)
     w2 = 0.326 #0.27593465      ## WEIGHT FOR BAND 3 REFLACTANCE (0.326)
     w3 = 0.138 #0.23366257      ## WEIGHT FOR BAND 4 REFLACTANCE (0.138)
     w4 = 0.084 #0.141771812     ## WEIGHT FOR BAND 5 REFLACTANCE (0.084)
     w5 = 0.056 #0.03571262      ## WEIGHT FOR BAND 6 REFLACTANCE (0.056)
     w6 = 0.41 #0.011620449     ## WEIGHT FOR BAND 7 REFLACTANCE (0.41)
-    wta = (w1 * band2_ref) + (w2 * band3_ref) + (w3 * band4_ref) + (w4 * band5_ref) + (w5 * band6_ref) + (w6 * band7_ref) 
+    wta = (w1 * B02) + (w2 * B03) + (w3 * B04) + (w4 * B05) + (w5 * B06) + (w6 * B07) 
 
     print("WTA calculated")
     
@@ -244,12 +241,13 @@ def sa_calc(sentinel_data):
 ### TOKEN ID API CALL
 
 def token_call():
+    _, instance_setup = setup()
     url = "https://services.sentinel-hub.com/oauth/token"
     headers = {"content-type": "application/x-www-form-urlencoded"}
     data = {
         "grant_type": "client_credentials",
-        "client_id": client_id,
-        "client_secret": client_secret
+        "client_id": instance_setup['CLIENT_ID'],
+        "client_secret": instance_setup['CLIENT_SECRET']
     }
 
     response = requests.post(url, headers=headers, data=data)
@@ -261,7 +259,7 @@ def token_call():
 
 ### SENTINELHUB METADATA API CALL
 
-def metadata_call(geojson_data_dict,geojson_data, input_datetime_string):
+def metadata_call(geojson_data_dict, input_datetime_string):
     token = token_call()
     bearer = "Bearer " + token
    
@@ -288,7 +286,7 @@ def metadata_call(geojson_data_dict,geojson_data, input_datetime_string):
 
 def sun_earth_dist(input_date):
     distance_data = {}
-    with open(r'C:\Users\ANUBHAV\OneDrive\Desktop\AGRI_DCM\backend\app\main\water_stress\SCRIPTT\earth_sun.csv', newline='') as csvfile:
+    with open('backend/app/main/water_stress/SCRIPTS/earth_sun.csv', newline='') as csvfile:
         reader = csv.DictReader(csvfile)
         for row in reader:
             distance_data[row['data']] = {'d': row['d']}
@@ -299,10 +297,10 @@ def sun_earth_dist(input_date):
 
 ### INCOMING SHORTWAVE RADIATION CALCULATIONS
 
-def rs_calc(geojson_data_dict,geojson_data, input_date, input_datetime_string, sentinel_data):
+def rs_calc(geojson_data_dict, input_date, input_datetime_string, sentinel_data):
     sed = sun_earth_dist(input_date)
     sed = float(sed)
-    metadata = metadata_call(geojson_data_dict,geojson_data, input_datetime_string)
+    metadata = metadata_call(geojson_data_dict, input_datetime_string)
     sea = metadata["features"][0]["properties"]["view:sun_elevation"]
     sea = math.radians(sea)
     sea = np.sin(sea)
@@ -317,16 +315,16 @@ def rs_calc(geojson_data_dict,geojson_data, input_date, input_datetime_string, s
 
 ### API CALL FOR WEATHER CONDITIONS
 
-def weather_api_call(geojson_data_dict,geojson_data, input_datetime_string, bbox):
-    metadata = metadata_call(geojson_data_dict,geojson_data, input_datetime_string)
-    # print(" after metadata call, in weather api call")
+def weather_api_call(geojson_data_dict, input_datetime_string, bbox):
+    metadata = metadata_call(geojson_data_dict, input_datetime_string)
     unix_time = metadata["features"][0]["properties"]["datetime"]
     date_string = unix_time.replace("T", " ").replace("Z", "")
     date_format = "%Y-%m-%d %H:%M:%S.%f"
     datetime_obj = datetime.strptime(date_string, date_format)
     unixtime = time.mktime(datetime_obj.timetuple())
     unixtime = math.trunc(unixtime)
-    APIKEY = openweather_apikey                                 
+    _, instance_setup = setup()
+    APIKEY = instance_setup['OPENWEATHER_APIKEY']                            
     unixtime = math.trunc(unixtime)
     da = unixtime 
     lat = bbox.middle[1]
@@ -348,8 +346,8 @@ def weather_api_call(geojson_data_dict,geojson_data, input_datetime_string, bbox
 
 ### ATMOSPHERIC EMISSIVITY CALCULATIONS
 
-def ea_calc(geojson_data_dict,geojson_data, input_datetime_string, bbox):
-    AT, RH, U10 = weather_api_call(geojson_data_dict,geojson_data, input_datetime_string, bbox)
+def ea_calc(geojson_data_dict, input_datetime_string, bbox):
+    AT, RH, U10 = weather_api_call(geojson_data_dict, input_datetime_string, bbox)
     AT = AT - 273.15
     power = (17.27 * AT) / (237.3 + AT)
     AVP = 6.108 * (RH / 100) * math.exp(power)     ## TETENS EQUATION
@@ -363,12 +361,12 @@ def ea_calc(geojson_data_dict,geojson_data, input_datetime_string, bbox):
 
 ### NET RADIATION CALCULATIONS
 
-def r_calc(geojson_data_dict,geojson_data, input_date, input_datetime_string, sentinel_data, bbox):
+def r_calc(geojson_data_dict, input_date, input_datetime_string, sentinel_data, bbox):
     LST = lst_calc(sentinel_data)
-    EA, AT = ea_calc(geojson_data_dict,geojson_data, input_datetime_string, bbox)
+    EA, AT = ea_calc(geojson_data_dict, input_datetime_string, bbox)
     ES = es_calc(sentinel_data)
     SA = sa_calc(sentinel_data)
-    RS = rs_calc(geojson_data_dict,geojson_data, input_date, input_datetime_string, sentinel_data)
+    RS = rs_calc(geojson_data_dict, input_date, input_datetime_string, sentinel_data)
     sbc = Stefan_Boltzmann    ## STEFAN BOLTZMANN CONSTANT (W/m2*K4)
     R = ((1 - SA) * RS) + (ES * EA * sbc * (AT ** 4)) - (ES * sbc * (LST ** 4))
 
@@ -379,9 +377,9 @@ def r_calc(geojson_data_dict,geojson_data, input_date, input_datetime_string, se
 
 ### SOIL HEAT FLUX CALCULATIONS
 
-def g_calc(geojson_data_dict,geojson_data, input_date, input_datetime_string, sentinel_data, bbox):
+def g_calc(geojson_data_dict, input_date, input_datetime_string, sentinel_data, bbox):
     NDVI = sentinel_data['NDVI']
-    R, LST, SA = r_calc(geojson_data_dict,geojson_data, input_date, input_datetime_string, sentinel_data, bbox)
+    R, LST, SA = r_calc(geojson_data_dict, input_date, input_datetime_string, sentinel_data, bbox)
     LST = LST - 273.15
     G = ((R * LST) / SA) * ((0.0038 * SA) + (0.0074 * (SA * SA))) * (1 - (0.98 * NDVI * NDVI * NDVI * NDVI))
     LST = LST + 273.15
@@ -394,7 +392,7 @@ def g_calc(geojson_data_dict,geojson_data, input_date, input_datetime_string, se
 ### CROP HEIGHT DICTIONARY
 
 def crop_height(crop, sentinel_data):
-    crop = crop[0]# its because crop is a list, (just a single variable in the list, return that)
+    crop = crop[0] # its because crop is a list, (just a single variable in the list, return that)
     sugarcane_height = ((-1) * 0.1695 * (sentinel_data['LAI'] * 2.3) * (sentinel_data['LAI'] * 2.3)) + (1.4576 * (sentinel_data['LAI'] * 2.3))
     crop_height_dict = {
         "Sugarcane" : sugarcane_height,
@@ -422,10 +420,10 @@ def zom_calc(crop, sentinel_data):
 
 ### FRICTION VELOCITY CALCULATIONS AT WEATHER STATION FOR NEUTRAL CONDITIONS
 
-def fv_calc(geojson_data_dict,geojson_data, input_datetime_string, zom, bbox):
+def fv_calc(geojson_data_dict, input_datetime_string, zom, bbox):
     k = 0.41     ## VON KARMAN CONSTANT
     z_wind = 10     ## HEIGHT AT WHICH WIND SPEED IS MEASURED
-    AT, RH, U10 = weather_api_call(geojson_data_dict,geojson_data, input_datetime_string, bbox)
+    AT, RH, U10 = weather_api_call(geojson_data_dict, input_datetime_string, bbox)
     fv = (k * U10) / np.log((z_wind) / zom)
 
     print("Friction Velocity calculated")
@@ -651,10 +649,10 @@ def RAH_corrected_calc(psi_z2, psi_z1, fv_pixel_corrected, zom_pixel):
 
 ### SENSIBLE HEAT FLUX CALCULATIONS
 
-def h_calc(geojson_data_dict,geojson_data, input_datetime_string, crop, sentinel_data, R, G, SA, LST, bbox):
+def h_calc(geojson_data_dict, input_datetime_string, crop, sentinel_data, R, G, SA, LST, bbox):
     zom = zom_calc(crop, sentinel_data)
     zom_pixel = zom_pixel_calc(sentinel_data)
-    fv = fv_calc(geojson_data_dict,geojson_data, input_datetime_string, zom, bbox)
+    fv = fv_calc(geojson_data_dict, input_datetime_string, zom, bbox)
     RAH = RAH_calc(zom, fv, zom_pixel)
     NDVI = sentinel_data['NDVI']
     LAI = sentinel_data['LAI']
@@ -693,10 +691,10 @@ def h_calc(geojson_data_dict,geojson_data, input_datetime_string, crop, sentinel
 
 ### LATENT HEAT FLUX CALCULATIONS 
 
-def lhf_calc(geojson_data_dict,geojson_data, input_date, input_datetime_string, crop, sentinel_data, bbox):
-    R, LST, SA = r_calc(geojson_data_dict,geojson_data, input_date, input_datetime_string, sentinel_data, bbox)
-    G = g_calc(geojson_data_dict,geojson_data, input_date, input_datetime_string, sentinel_data, bbox)
-    H = h_calc(geojson_data_dict,geojson_data, input_datetime_string, crop, sentinel_data, R, G, SA, LST, bbox)
+def lhf_calc(geojson_data_dict, input_date, input_datetime_string, crop, sentinel_data, bbox):
+    R, LST, SA = r_calc(geojson_data_dict, input_date, input_datetime_string, sentinel_data, bbox)
+    G = g_calc(geojson_data_dict, input_date, input_datetime_string, sentinel_data, bbox)
+    H = h_calc(geojson_data_dict, input_datetime_string, crop, sentinel_data, R, G, SA, LST, bbox)
     LHF = R - G - H
 
     print("LHF calculated")
@@ -709,7 +707,8 @@ def lhf_calc(geojson_data_dict,geojson_data, input_date, input_datetime_string, 
 def ghi_calc(input_date, bbox):
     lat = bbox.middle[1]
     lon = bbox.middle[0]
-    API_KEY = openweather_apikey
+    _, instance_setup = setup()
+    API_KEY = instance_setup['OPENWEATHER_APIKEY']
     response = requests.get(f"https://api.openweathermap.org/energy/1.0/solar/data?lat={lat}&lon={lon}&date={input_date}&appid={API_KEY}")
     data = response.json()
     GHI = 0
@@ -724,17 +723,15 @@ def ghi_calc(input_date, bbox):
 
 ### EVAPO-TRANSPORATION CALCULATIONS
 
-def et_calc(geojson_data_dict,geojson_data, input_date, input_datetime_string, crop, sentinel_data, bbox, width , height, transform):
+def et_calc(geojson_data_dict, geojson_data, input_date, input_datetime_string, crop, sentinel_data, bbox, width , height, transform):
     GHI = ghi_calc(input_date, bbox)
-    LHF, R, G, H = lhf_calc(geojson_data_dict,geojson_data, input_date, input_datetime_string, crop, sentinel_data, bbox)
+    LHF, R, G, H = lhf_calc(geojson_data_dict, input_date, input_datetime_string, crop, sentinel_data, bbox)
     d_to_s = 86400     ## SECONDS IN A DAY
     lhv = 2.45         ## LATENT HEAT OF VAPORIZATION
     ET = (d_to_s / (lhv * 1000000)) * (LHF / (R - G)) * GHI
     ET[ET < 0] = 0
 
-    et_path = r'C:\Users\ANUBHAV\OneDrive\Desktop\AGRI_DCM\backend\app\main\output_data\ET.tiff'
-    # ET, R, G, H = et_calc(geojson_data_dict,geojson_data, input_date, input_datetime_string, crop, sentinel_data,bbox, width , height, transform)
-
+    et_path = 'backend/app/main/output_data/ET.tiff'
     with rasterio.open(et_path, 'w', driver = 'GTiff', width = width, height = height, count = 1, dtype = ET.dtype, crs = rasterioCRS.from_epsg(4326), transform = transform) as dst:
         dst.write(ET, 1)
     clipping_raster(geojson_data, et_path)
@@ -754,25 +751,32 @@ def cwsi_calc(R, G, H):
     return cwsi
 
 
-### SWSI CALCULATIONS
-### SWSI --> SOIL WATER STRESS INDEX
+### TIFF MIN MAX CALCULATIONS
 
-def get_min_max(tiff_path):
-     with rasterio.open(tiff_path) as src:
-        tiff = src.read()
+def get_min_max(tiff):
         tiff_flatten = tiff.flatten()
         tiff_unique = np.unique(tiff_flatten)
-        tiff_min = np.amin(tiff)
-        tiff_max = np.amax(tiff)
-        print("asd ",tiff_min,tiff_max, " --")
+        print(tiff_unique[:10])
+        print(tiff_unique[-10:])
+        tiff_min = None
+        tiff_max = None
         if np.amin(tiff) == float('-inf'):
             tiff_min = tiff_unique[1]
         if np.amax(tiff) == float('inf'):
             tiff_max = tiff_unique[-2]
         else:
-            tiff_min = np.amin(tiff)
-            tiff_max = np.amax(tiff)
+            tiff_min = np.nanmin(tiff)
+            tiff_max = np.nanmax(tiff)
+
+        print(tiff_min, tiff_max)
+
+        print("TIFF Min Max calculated")
+
         return np.array([round(tiff_min,2), round(tiff_max,2)])
+     
+
+### SWSI CALCULATIONS
+### SWSI --> SOIL WATER STRESS INDEX
 
 def swsi_calc(geojson_data, R, G, H, width , height, transform):
     c1 = 0.46307
@@ -784,24 +788,21 @@ def swsi_calc(geojson_data, R, G, H, width , height, transform):
                 cwsi[i][j] = 0
     swsi = c1 * c2 * (cwsi ** (c2 - 1)) * np.exp((-1) * c1 * (cwsi ** c2))
 
-    print("swsi -")
     for i in range(len(swsi)):
         for j in range(len(swsi[i])):
             if swsi[i][j] == np.nan:
                 print(swsi[i][j])
 
-    swsi_path = r'C:\Users\ANUBHAV\OneDrive\Desktop\AGRI_DCM\backend\app\main\output_data\SWSI.tiff'
+    swsi_path = 'backend/app/main/output_data/SWSI.tiff'
     with rasterio.open(swsi_path, 'w', driver = 'GTiff', width = width, height = height, count = 1, dtype = swsi.dtype, crs = rasterioCRS.from_epsg(4326), transform = transform) as dst:
         dst.write(swsi, 1)
     clipping_raster(geojson_data, swsi_path)
     swsi_stats, swsi_mean_dict = zonal_stats_calc(geojson_data, swsi_path)
     swsi_df = pd.DataFrame(list(swsi_mean_dict.values()), columns = ['SWSI'])
+    tiff_min_max = get_min_max(swsi)
 
-    tiff_min_max = get_min_max(swsi_path)
     print("SWSI calculated")
 
-
-    print("tiff_min_max:", tiff_min_max)
     return swsi_df, swsi_mean_dict, tiff_min_max
 
 
@@ -837,9 +838,9 @@ def growth_phase_calc(crop, input_date, geojson_data):
 
 
 ### CREATING METADATA.TXT FILE
-def metadata_file(geojson_data_dict,geojson_data, input_datetime_string, sentinel_data, height, width, dtype, transform,user_id):
-    metadata = metadata_call(geojson_data_dict,geojson_data, input_datetime_string)
-    os.makedirs(f"C:\\Users\\ANUBHAV\\OneDrive\\Desktop\\AGRI_DCM\\backend\\app\\main\\water_stress\\DL_CLOUD_MASKING\\{metadata['features'][0]['id']}", exist_ok=True)
+def metadata_file(geojson_data_dict, input_datetime_string, sentinel_data, height, width, dtype, transform, user_id):
+    metadata = metadata_call(geojson_data_dict, input_datetime_string)
+    os.makedirs(f"backend/app/main/water_stress/DL_CLOUD_MASKING/{metadata['features'][0]['id']}", exist_ok = True)
     mtl_file = f"""GROUP = LANDSAT_METADATA_FILE
     GROUP = PROJECTION_ATTRIBUTES
         MAP_PROJECTION = "UTM"
@@ -895,41 +896,41 @@ END_GROUP = LANDSAT_METADATA_FILE
 END
 """
 
-    metadata_path = f"C:/Users/ANUBHAV/OneDrive/Desktop/AGRI_DCM/backend/app/main/water_stress/DL_CLOUD_MASKING/{metadata['features'][0]['id']}/{metadata['features'][0]['id']}_MTL.txt"
+    metadata_path = f"backend/app/main/water_stress/DL_CLOUD_MASKING/{metadata['features'][0]['id']}/{metadata['features'][0]['id']}_MTL.txt"
     with open(metadata_path, "w") as file:
         file.write(mtl_file)
 
-    b2_path = f"C:/Users/ANUBHAV/OneDrive/Desktop/AGRI_DCM/backend/app/main/water_stress/DL_CLOUD_MASKING/{metadata['features'][0]['id']}/{metadata['features'][0]['id']}_B2.tif"
-    b2 = sentinel_data['BAND2_REF']
+    b2_path = f"backend/app/main/water_stress/DL_CLOUD_MASKING/{metadata['features'][0]['id']}/{metadata['features'][0]['id']}_B2.tif"
+    b2 = sentinel_data['B02']
     with rasterio.open(b2_path, 'w', driver = 'GTiff', width = width, height = height, count = 1, dtype = dtype, crs = rasterioCRS.from_epsg(4326), transform = transform) as dst:
         dst.write(b2, 1)
 
-    b3_path = f"C:/Users/ANUBHAV/OneDrive/Desktop/AGRI_DCM/backend/app/main/water_stress/DL_CLOUD_MASKING/{metadata['features'][0]['id']}/{metadata['features'][0]['id']}_B3.tif"
-    b3 = sentinel_data['BAND3_REF']
+    b3_path = f"backend/app/main/water_stress/DL_CLOUD_MASKING/{metadata['features'][0]['id']}/{metadata['features'][0]['id']}_B3.tif"
+    b3 = sentinel_data['B03']
     with rasterio.open(b3_path, 'w', driver = 'GTiff', width = width, height = height, count = 1, dtype = dtype, crs = rasterioCRS.from_epsg(4326), transform = transform) as dst:
         dst.write(b3, 1)
 
-    b4_path = f"C:/Users/ANUBHAV/OneDrive/Desktop/AGRI_DCM/backend/app/main/water_stress/DL_CLOUD_MASKING/{metadata['features'][0]['id']}/{metadata['features'][0]['id']}_B4.tif"
-    b4 = sentinel_data['BAND4_REF']
+    b4_path = f"backend/app/main/water_stress/DL_CLOUD_MASKING/{metadata['features'][0]['id']}/{metadata['features'][0]['id']}_B4.tif"
+    b4 = sentinel_data['B04']
     with rasterio.open(b4_path, 'w', driver = 'GTiff', width = width, height = height, count = 1, dtype = dtype, crs = rasterioCRS.from_epsg(4326), transform = transform) as dst:
         dst.write(b4, 1)
 
-    b5_path = f"C:/Users/ANUBHAV/OneDrive/Desktop/AGRI_DCM/backend/app/main/water_stress/DL_CLOUD_MASKING/{metadata['features'][0]['id']}/{metadata['features'][0]['id']}_B5.tif"
-    b5 = sentinel_data['BAND5_REF']
+    b5_path = f"backend/app/main/water_stress/DL_CLOUD_MASKING/{metadata['features'][0]['id']}/{metadata['features'][0]['id']}_B5.tif"
+    b5 = sentinel_data['B05']
     with rasterio.open(b5_path, 'w', driver = 'GTiff', width = width, height = height, count = 1, dtype = dtype, crs = rasterioCRS.from_epsg(4326), transform = transform) as dst:
         dst.write(b5, 1)
 
-    b6_path = f"C:/Users/ANUBHAV/OneDrive/Desktop/AGRI_DCM/backend/app/main/water_stress/DL_CLOUD_MASKING/{metadata['features'][0]['id']}/{metadata['features'][0]['id']}_B6.tif"
-    b6 = sentinel_data ['BAND6_REF']
+    b6_path = f"backend/app/main/water_stress/DL_CLOUD_MASKING/{metadata['features'][0]['id']}/{metadata['features'][0]['id']}_B6.tif"
+    b6 = sentinel_data ['B06']
     with rasterio.open(b6_path, 'w', driver = 'GTiff', width = width, height = height, count = 1, dtype = dtype, crs = rasterioCRS.from_epsg(4326), transform = transform) as dst:
         dst.write(b6, 1)
 
-    b7_path = f"C:/Users/ANUBHAV/OneDrive/Desktop/AGRI_DCM/backend/app/main/water_stress/DL_CLOUD_MASKING/{metadata['features'][0]['id']}/{metadata['features'][0]['id']}_B7.tif"
-    b7 = sentinel_data['BAND7_REF']
+    b7_path = f"backend/app/main/water_stress/DL_CLOUD_MASKING/{metadata['features'][0]['id']}/{metadata['features'][0]['id']}_B7.tif"
+    b7 = sentinel_data['B07']
     with rasterio.open(b7_path, 'w', driver = 'GTiff', width = width, height = height, count = 1, dtype = dtype, crs = rasterioCRS.from_epsg(4326), transform = transform) as dst:
         dst.write(b7, 1)
 
-    bqa_path = f"C:/Users/ANUBHAV/OneDrive/Desktop/AGRI_DCM/backend/app/main/water_stress/DL_CLOUD_MASKING/{metadata['features'][0]['id']}/{metadata['features'][0]['id']}_BQA.tif"
+    bqa_path = f"backend/app/main/water_stress/DL_CLOUD_MASKING/{metadata['features'][0]['id']}/{metadata['features'][0]['id']}_BQA.tif"
     bqa = sentinel_data['BQA']
     with rasterio.open(bqa_path, 'w', driver = 'GTiff', width = width, height = height, count = 1, dtype = dtype, crs = rasterioCRS.from_epsg(4326), transform = transform) as dst:
         dst.write(bqa, 1)
@@ -937,17 +938,16 @@ END
     return metadata
 
 
-
 ### LANDSAT DL CLOUD MASKING
 
-def cloud_masking(geojson_data_dict,geojson_data, input_datetime_string, sentinel_data, height, width, dtype, transform,user_id):
-    metadata = metadata_file(geojson_data_dict,geojson_data, input_datetime_string, sentinel_data, height, width, dtype, transform,user_id)
+def cloud_masking(geojson_data_dict, geojson_data, input_datetime_string, sentinel_data, height, width, dtype, transform, user_id):
+    metadata = metadata_file(geojson_data_dict, input_datetime_string, sentinel_data, height, width, dtype, transform, user_id)
     utils.select_cuda_device("gpu")
     satname = "L8"
     namemodel = "rgbiswir"
-    landsatimage = f"C:\\Users\\ANUBHAV\\OneDrive\\Desktop\\AGRI_DCM\\backend\\app\\main\\water_stress\\DL_CLOUD_MASKING\\{metadata['features'][0]['id']}"
+    landsatimage = f"backend/app/main/water_stress/DL_CLOUD_MASKING/{metadata['features'][0]['id']}"
     satobj = l8image.L8Image(landsatimage)
-    model = utils.Model(satname=satname, namemodel=namemodel)
+    model = utils.Model(satname = satname, namemodel = namemodel)
     cloud_prob_bin = model.predict(satobj)
     path = os.path.join(satobj.folder, "Mask.tiff")
     utils.save_cloud_mask(satobj, cloud_prob_bin, path)
@@ -1054,6 +1054,7 @@ def dict_to_gdf(geojson_data):
     
     return gdf
 
+
 def gdf_to_dict(gdf):
     """
     Converts a GeoDataFrame back into a GeoJSON-like dictionary.
@@ -1071,50 +1072,36 @@ def gdf_to_dict(gdf):
     }
 
 def get_data(data):
-
     project_id = data.get('project_id')
-
-    geojson_data_dict,geojson_data,input_date, input_datetime_string, crop,selected_parameter = input_data(data)
-
+    geojson_data_dict, geojson_data, input_date, input_datetime_string, crop, selected_parameter = input_data(data)
     bbox, extent = dimensions(geojson_data)
 
-    return geojson_data_dict,geojson_data,input_date, input_datetime_string, crop,selected_parameter,bbox, extent,project_id
+    return geojson_data_dict, geojson_data, input_date, input_datetime_string, crop, selected_parameter, bbox, extent, project_id
 
-def generate_tiff(geojson_data_dict,geojson_data, input_date, input_datetime_string, crop,bbox,extent,user_id):
-
+def generate_tiff(geojson_data_dict,geojson_data, input_date, input_datetime_string, crop, bbox, extent, user_id):
     sentinel_data, width, height, dtype, transform = sentinel_data_dict(bbox, input_date, extent)
-
-    et_stats, R, G, H = et_calc(geojson_data_dict,geojson_data, input_date, input_datetime_string, crop,
-                                 sentinel_data, bbox, width, height, transform)
-    
+    et_stats, R, G, H = et_calc(geojson_data_dict, geojson_data, input_date, input_datetime_string, crop, 
+                                sentinel_data, bbox, width, height, transform)
     swsi_df, swsi_mean_dict, tiff_min_max = swsi_calc(geojson_data, R, G, H, width, height, transform)
-    
-
-    masks_stats, masks_mean_dict, mask_path = cloud_masking(geojson_data_dict, geojson_data, input_datetime_string, 
-     sentinel_data, height, width, dtype, transform,user_id)
+    _, masks_mean_dict, mask_path = cloud_masking(geojson_data_dict, geojson_data, input_datetime_string, 
+                                                  sentinel_data, height, width, dtype, transform, user_id)
 
     return  swsi_df, swsi_mean_dict, masks_mean_dict, mask_path, et_stats, tiff_min_max
 
-def generate_excel(masks_mean_dict, crop, input_date, geojson_data,et_stats, swsi_df,swsi_mean_dict,
-                   mask_path):
-
+def generate_excel(masks_mean_dict, crop, input_date, geojson_data, et_stats, swsi_df, swsi_mean_dict, mask_path):
     inference = inferencing(swsi_mean_dict, masks_mean_dict, crop, input_date, geojson_data)
-
     final_df = pd.DataFrame()
     final_df = excel(et_stats, inference, swsi_df) ## final excel
-    final_df.to_excel(r'C:\\Users\\ANUBHAV\\OneDrive\\Desktop\\AGRI_DCM\\backend\\app\\main\\output_data\\WATER_STRESS.xlsx', index = False)
-
-    # autumn_inference = final_df[final_df['TYPE'].isin(['Autumn', 'Autumn_Ratoon'])]
-    # spring_inference = final_df[final_df['TYPE'].isin(['Spring', 'Spring_Ratoon'])]
-    
-    # autumn_inference.to_excel(r'C:\\Users\\ANUBHAV\\OneDrive\\Desktop\\AGRI_DCM\\backend\\app\\main\\water_stress\\OUTPUT\\AJBAPUR\\AUTUMN\\ajbapur_autumn_water_stress.xlsx', index = False)
-    # spring_inference.to_excel(r'C:\\Users\\ANUBHAV\\OneDrive\\Desktop\\AGRI_DCM\\backend\\app\\main\\water_stress\\OUTPUT\\AJBAPUR\\SPRING\\ajbapur_spring_water_stress.xlsx', index = False)
+    final_df.to_excel('backend/app/main/output_data/WATER_STRESS.xlsx', index = False)
     shutil.rmtree(os.path.dirname(mask_path))
     
     return final_df
 
-def main(data,user_id):
 
+### MAIN FUNCTION
+
+def main(data,user_id):
+    print("water-stress-script")
     ## MAIN FUNCTION STEPS  ->
     ## get data (recieving data from frontend and changing format etc)
     ## generate tiff and tiff_min_max
@@ -1126,11 +1113,12 @@ def main(data,user_id):
 
     # get data (recieving data from frontend and changing format etc)
     (geojson_data_dict, geojson_data, input_date, input_datetime_string, 
-    crop, selected_parameter, bbox, extent, project_id) = get_data(data)
+     crop, selected_parameter, bbox, extent, project_id) = get_data(data)
 
     # generate tiff, tiff_min_max and related stuff
-    (swsi_df, swsi_mean_dict, masks_mean_dict, mask_path, et_stats, tiff_min_max )= generate_tiff(geojson_data_dict,geojson_data,
-                                                                 input_date, input_datetime_string, crop,bbox,extent,user_id)
+    (swsi_df, swsi_mean_dict, masks_mean_dict, 
+     mask_path, et_stats, tiff_min_max) = generate_tiff(geojson_data_dict,geojson_data, input_date, 
+                                                        input_datetime_string, crop,bbox,extent,user_id)
     
     # generate excel,final_df and related stuff
     final_df = generate_excel(masks_mean_dict, crop, input_date, geojson_data,et_stats, swsi_df,swsi_mean_dict,
@@ -1138,8 +1126,8 @@ def main(data,user_id):
     
     ## save result in result_table and get the result_id
     ## send paths of tiff and excel
-    tiff_path = r'C:\Users\ANUBHAV\OneDrive\Desktop\AGRI_DCM\backend\app\main\output_data\ET.tiff'
-    excel_path = r'C:\Users\ANUBHAV\OneDrive\Desktop\AGRI_DCM\backend\app\main\output_data\WATER_STRESS.xlsx'
+    tiff_path = 'backend/app/main/output_data/ET.tiff'
+    excel_path = 'backend/app/main/output_data/WATER_STRESS.xlsx'
 
     ## save result(excel,tiff,tiff_min_max,project_id) in result_table and get the result_id
     result_id = create_result_entry(user_id, tiff_min_max, data.get('date'), data.get('selectedParameter'), data.get('GeojsonData'),

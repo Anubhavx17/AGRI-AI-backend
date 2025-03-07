@@ -34,7 +34,7 @@ def mosaic_tiff(tiffs):
 
 def clipping_raster(geojson_data, path):
     with rasterio.open(path) as src:   
-        out_image, out_transform = rasterio.mask.mask(src, geojson_data.geometry, crop = True)
+        out_image, out_transform = rasterio.mask.mask(src, geojson_data.geometry, crop = True, nodata = -9999)
         out_meta = src.meta.copy()
         out_meta.update({"driver": "GTiff",
                          "height": out_image.shape[1],

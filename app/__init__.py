@@ -31,7 +31,7 @@ def create_app():
     # from app.tile_server.tile import tile_server_bp
     # from app.main.fetch_result_table import fetch_result_bp
     from app.fetch_result.fetch_result import result_fetch_bp
-    from app.main.water_stress.SCRIPTT.water_stress_api import water_stress_bp
+    from app.main.water_stress.SCRIPTS.water_stress_api import water_stress_bp
 
     app.register_blueprint(date_fetch_bp)
     app.register_blueprint(crop_stress_bp)
@@ -40,4 +40,5 @@ def create_app():
     app.register_blueprint(water_stress_bp)
     # app.register_blueprint(tile_server_bp)
     app.register_blueprint(result_fetch_bp)
+    
     return app

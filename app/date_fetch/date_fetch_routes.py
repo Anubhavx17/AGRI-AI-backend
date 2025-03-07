@@ -1,3 +1,5 @@
+import os 
+from dotenv import load_dotenv
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 import requests
@@ -12,6 +14,7 @@ BUCKET_NAME = "dcmbucket"
 
 # Create a Blueprint for the date fetching routes
 date_fetch_bp = Blueprint('date_fetch', __name__)
+
 
 def filter_geojson_by_polygon_ids(geojsonData, Polygon_IDS):
     # Initialize a new dictionary to hold the filtered features
@@ -33,6 +36,7 @@ def save_geojson_to_file(geojsonList, filename='okjs.json'):
 
     print(f"File saved as {filename}")
 
+
 # Helper functions
 def input_date_range(data):
     start_date = data['startDate']
@@ -47,8 +51,8 @@ def token_call():
     headers = {"content-type": "application/x-www-form-urlencoded"}
     data = {
         "grant_type": "client_credentials",
-        "client_secret": app.config['SENTINEL_CLIENT_SECRET'],
-        "client_id":  app.config['SENTINEL_CLIENT_ID']
+        "client_secret": app.config['CLIENT_SECRET'],
+        "client_id":  app.config['CLIENT_ID']
     }
     response = requests.post(url, headers=headers, data=data)  
     token = response.json()
@@ -144,5 +148,3 @@ def fetch_dates():
     except (requests.exceptions.RequestException, Exception) as e:
         print("error:", str(e))
         return jsonify({"msg": "An error occurred, please try again", "error": str(e)}), 500
-
-

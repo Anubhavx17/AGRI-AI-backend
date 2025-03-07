@@ -21,8 +21,8 @@ BANDS_MODEL = {"L8rgbiswir": [2, 3, 4, 5, 6, 7],  # 1-based band index [B2, B3, 
 }
 
 CLOUD_DETECTION_WEIGHTS = {
-    "rgbiswir": pkg_resources.resource_filename('dl_l8s2_uv', 'weights/landsatbiomeRGBISWIR7.hdf5'),
-    "rgbi": pkg_resources.resource_filename('dl_l8s2_uv', "weights/landsatbiomeRGBI6.hdf5")
+    "rgbiswir": pkg_resources.resource_filename('app.main.water_stress.DL_CLOUD_MASKING.dl_l8s2_uv', 'weights/landsatbiomeRGBISWIR7.hdf5'),
+    "rgbi": pkg_resources.resource_filename('app.main.water_stress.DL_CLOUD_MASKING.dl_l8s2_uv', "weights/landsatbiomeRGBI6.hdf5")
 }
 
 # S2 name convention fields

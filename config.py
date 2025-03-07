@@ -26,12 +26,9 @@ class Config:
     MAIL_DEFAULT_SENDER = os.environ.get('MAIL_DEFAULT_SENDER')
 
     # Sentinel Hub Credentials
-    SENTINEL_CLIENT_ID = os.getenv('SENTINEL_CLIENT_ID')
-    SENTINEL_CLIENT_SECRET = os.getenv('SENTINEL_CLIENT_SECRET')
-    INSTANCE_ID = os.getenv('INSTANCE_ID')
-    SENTINEL_LANDSAT8_ID = os.getenv('SENTINEL_LANDSAT8_ID')
-    SENTINEL_3_ID = os.getenv('SENTINEL_3_ID')
-    WATER_PRODUCTIVITY_ID = os.getenv('WATER_PRODUCTIVITY_ID')
+    CLIENT_ID = os.getenv('CLIENT_ID')
+    CLIENT_SECRET = os.getenv('CLIENT_SECRET')
+    LANDSAT8_ID = os.getenv('LANDSAT8_ID')
+    SENTINEL2_ID = os.getenv('SENTINEL2_ID')
+    SENTINEL3_ID = os.getenv('SENTINEL3_ID')
     OPENWEATHER_API_KEY = os.getenv('OPENWEATHER_API_KEY')
-
-

@@ -1,41 +1,13 @@
-import os
-from dotenv import load_dotenv
-from sentinelhub import DataCollection, MimeType, WcsRequest, CustomUrlParam,SHConfig
-from app.main.water_stress.SCRIPTT.utils import *
+from sentinelhub import DataCollection, MimeType, WcsRequest, CustomUrlParam
+from app.main.water_stress.SCRIPTS.utils import *
 import warnings
+
 warnings.filterwarnings("ignore")
 
-
-### LOADING SENTINEL HUB CONFIGURATION
-
-load_dotenv(r'C:\Users\ANUBHAV\OneDrive\Desktop\AGRI_DCM\backend\.env')
-instance_id = os.getenv('SENTINEL_LANDSAT8_ID')
-client_id = os.getenv('SENTINEL_CLIENT_ID')
-client_secret = os.getenv('SENTINEL_CLIENT_SECRET')
-
-
-### SENTINEL HUB INSTANCE INFORMATION
-
-from sentinelhub import SHConfig
-config = SHConfig()
-config_dict = config.__dict__
-config.instance_id = instance_id
-config.sh_client_id = client_id
-config.sh_client_secret = client_secret
-    
-# print("client id:",config.sh_client_id)
-# print("secret:",config.sh_client_secret)
-# print("instance_id:",config.instance_id)
-config.save()
-
-
-
-for key, value in config_dict.items():
-    if value is None:
-        print(f"{key} is None")
+        
 ### SENTINELHUB API WCS REQUEST FOR BAND 2 REFLECTANCE LAYER
 
-def band2_reflectance_call(bbox, input_date):
+def band2_reflectance_call(bbox, input_date, config):
     wcs_true_color_request = WcsRequest(
         data_collection = DataCollection.LANDSAT_OT_L1,
         data_folder = '/Users/sid/Documents/STRESS/WATER_STRESS/SENTINEL_PRODUCTS/B02',
@@ -60,7 +32,7 @@ def band2_reflectance_call(bbox, input_date):
 
 ### SENTINELHUB API WCS REQUEST FOR BAND 3 REFLECTANCE LAYER
 
-def band3_reflectance_call(bbox, input_date):
+def band3_reflectance_call(bbox, input_date, config):
     wcs_true_color_request = WcsRequest(
         data_collection = DataCollection.LANDSAT_OT_L1,
         data_folder = '/Users/sid/Documents/STRESS/WATER_STRESS/SENTINEL_PRODUCTS/B03',
@@ -85,7 +57,7 @@ def band3_reflectance_call(bbox, input_date):
 
 ### SENTINELHUB API WCS REQUEST FOR BAND 4 REFLECTANCE LAYER
 
-def band4_reflectance_call(bbox, input_date):
+def band4_reflectance_call(bbox, input_date, config):
     wcs_true_color_request = WcsRequest(
         data_collection = DataCollection.LANDSAT_OT_L1,
         data_folder = '/Users/sid/Documents/STRESS/WATER_STRESS/SENTINEL_PRODUCTS/B04',
@@ -110,7 +82,7 @@ def band4_reflectance_call(bbox, input_date):
 
 ### SENTINELHUB API WCS REQUEST FOR BAND 5 REFLECTANCE LAYER
 
-def band5_reflectance_call(bbox, input_date):
+def band5_reflectance_call(bbox, input_date, config):
     wcs_true_color_request = WcsRequest(
         data_collection = DataCollection.LANDSAT_OT_L1,
         data_folder = '/Users/sid/Documents/STRESS/WATER_STRESS/SENTINEL_PRODUCTS/B05',
@@ -135,7 +107,7 @@ def band5_reflectance_call(bbox, input_date):
 
 ### SENTINELHUB API WCS REQUEST FOR BAND 6 REFLECTANCE LAYER
 
-def band6_reflectance_call(bbox, input_date):
+def band6_reflectance_call(bbox, input_date, config):
     wcs_true_color_request = WcsRequest(
         data_collection = DataCollection.LANDSAT_OT_L1,
         data_folder = '/Users/sid/Documents/STRESS/WATER_STRESS/SENTINEL_PRODUCTS/B06',
@@ -160,7 +132,7 @@ def band6_reflectance_call(bbox, input_date):
 
 ### SENTINELHUB API WCS REQUEST FOR BAND 7 REFLECTANCE LAYER
 
-def band7_reflectance_call(bbox, input_date):
+def band7_reflectance_call(bbox, input_date, config):
     wcs_true_color_request = WcsRequest(
         data_collection = DataCollection.LANDSAT_OT_L1,
         data_folder = '/Users/sid/Documents/STRESS/WATER_STRESS/SENTINEL_PRODUCTS/B07',
@@ -185,7 +157,7 @@ def band7_reflectance_call(bbox, input_date):
 
 ### SENTINELHUB API WCS REQUEST FOR BAND 10 BRIGHTNESSS TEMPERATURE LAYER
 
-def band10_bt_call(bbox, input_date):
+def band10_bt_call(bbox, input_date, config):
     wcs_true_color_request = WcsRequest(
         data_collection = DataCollection.LANDSAT_OT_L1,
         data_folder = '/Users/sid/Documents/STRESS/WATER_STRESS/SENTINEL_PRODUCTS/B10_BT',
@@ -210,7 +182,7 @@ def band10_bt_call(bbox, input_date):
 
 ### SENTINELHUB API WCS REQUEST FOR BQA LAYER
 
-def bqa_layer_call(bbox, input_date):
+def bqa_layer_call(bbox, input_date, config):
     wcs_true_color_request = WcsRequest(
         data_collection = DataCollection.LANDSAT_OT_L1,
         data_folder = '/Users/sid/Documents/STRESS/WATER_STRESS/SENTINEL_PRODUCTS/BQA_CLOUD',
@@ -236,7 +208,7 @@ def bqa_layer_call(bbox, input_date):
 ### SENTINELHUB API WCS REQUEST FOR DEM LAYER
 ### DEM --> DIGITAL ELEVATION MODEL
 
-def dem_layer_call(bbox, input_date):
+def dem_layer_call(bbox, input_date, config):
     wcs_true_color_request = WcsRequest(
         data_collection = DataCollection.DEM,
         data_folder = '/Users/sid/Documents/STRESS/WATER_STRESS/SENTINEL_PRODUCTS/DEM',
@@ -262,7 +234,7 @@ def dem_layer_call(bbox, input_date):
 ### SENTINELHUB API WCS REQUEST FOR NDVI LAYER
 ### NDVI --> NORMALIZED DIFFERENCE VEGETATION INDEX
 
-def NDVI_layer_call(bbox, input_date):
+def NDVI_layer_call(bbox, input_date, config):
     wcs_true_color_request = WcsRequest(
         data_collection  = DataCollection.LANDSAT_OT_L1,
         data_folder = '/Users/sid/Documents/STRESS/WATER_STRESS/SENTINEL_PRODUCTS/NDVI',
@@ -288,7 +260,7 @@ def NDVI_layer_call(bbox, input_date):
 ### SENTINELHUB API WCS REQUEST FOR NDWI LAYER
 ### NDWI --> NORMALIZED DIFFERENCE WATER INDEX
 
-def NDWI_layer_call(bbox, input_date):
+def NDWI_layer_call(bbox, input_date, config):
     wcs_true_color_request = WcsRequest(
         data_collection  = DataCollection.LANDSAT_OT_L1,
         data_folder = '/Users/sid/Documents/STRESS/WATER_STRESS/SENTINEL_PRODUCTS/NDWI',
@@ -314,7 +286,7 @@ def NDWI_layer_call(bbox, input_date):
 ### SENTINELHUB API WCS REQUEST FOR SAVI LAYER
 ### SAVI --> SOIL ADJUSTED VEGETATION INDEX
 
-def SAVI_layer_call(bbox, input_date):
+def SAVI_layer_call(bbox, input_date, config):
     wcs_true_color_request = WcsRequest(
         data_collection  = DataCollection.LANDSAT_OT_L1,
         data_folder = '/Users/sid/Documents/STRESS/WATER_STRESS/SENTINEL_PRODUCTS/SAVI',
