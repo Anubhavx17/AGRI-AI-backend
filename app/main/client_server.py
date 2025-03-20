@@ -14,60 +14,21 @@ def initialize():
     start_time = time.time()  # Start the timer
     clients = request.get_json()
 
-    for client in clients:
-        tiff_url = client["tiff_url"]
-        port = client['port_id']
+    def start_client(client_data):
+        tiff_url = client_data["tiff_url"]
+        port = client_data['port_id']
         client = Client(src_path=tiff_url, port=port, host="127.0.0.1", config={})
-
-        thread = Thread(target=client.start)
-        thread.daemon = True
-        thread.start()
-
+        client.start()
         print(f"Initialized client on port {port}")
+
+    # Run all clients in parallel
+    with ThreadPoolExecutor() as executor:
+        executor.map(start_client, clients)
 
     end_time = time.time()  # End the timer
     print(f"Time taken for /initialize endpoint: {end_time - start_time:.2f} seconds")
 
     return jsonify({"message": "Clients initialized successfully."})
-
-@app.route("/shutdown_clients", methods=["POST"])
-def shutdown():
-    start_time = time.time()  # Start the timer
-    clients = request.get_json()
-
-    for client in clients:
-        tiff_url = client["tiff_url"]
-        port = client['port_id']
-        client = Client(src_path=tiff_url, port=port, host="127.0.0.1", config={})
-        client.shutdown()  # calls something like ServerManager.shutdown_server("127.0.0.1:port")
-        print(f"Shut down client on port {port}")
-
-    end_time = time.time()  # End the timer
-    print(f"Time taken for /shutdown endpoint: {end_time - start_time:.2f} seconds")
-
-    return jsonify({"message": "Clients shut successfully."})
-
-
-# @app.route("/initialize_clients", methods=["POST"])
-# def initialize():
-#     start_time = time.time()  # Start the timer
-#     clients = request.get_json()
-
-#     def start_client(client_data):
-#         tiff_url = client_data["tiff_url"]
-#         port = client_data['port_id']
-#         client = Client(src_path=tiff_url, port=port, host="127.0.0.1", config={})
-#         client.start()
-#         print(f"Initialized client on port {port}")
-
-#     # Run all clients in parallel
-#     with ThreadPoolExecutor() as executor:
-#         executor.map(start_client, clients)
-
-#     end_time = time.time()  # End the timer
-#     print(f"Time taken for /initialize endpoint: {end_time - start_time:.2f} seconds")
-
-#     return jsonify({"message": "Clients initialized successfully."})
 
 
 # @app.route("/initialize_clients", methods=["POST"])

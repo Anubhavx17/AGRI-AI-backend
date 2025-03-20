@@ -2,7 +2,7 @@ from datetime import datetime
 from app import db
 from werkzeug.security import generate_password_hash, check_password_hash
 from sqlalchemy.dialects.postgresql import JSON
-
+from sqlalchemy.ext.hybrid import hybrid_property
 
 
 #                               TRUNCATE TABLE public.crop_stress_graph_model CASCADE; ALTER SEQUENCE crop_stress_graph_model_id_seq RESTART WITH 1;
@@ -44,7 +44,8 @@ class ProjectDetailsModel(db.Model):
     geojson = db.Column(JSON, nullable=False)
     selected_parameters = db.Column(db.Text, nullable=False)
     selected_location = db.Column(db.String(255), nullable=True)  
-
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    
 class GraphModel(db.Model):
     __tablename__ = 'graph_table'
     id = db.Column(db.Integer, primary_key=True)
@@ -54,6 +55,8 @@ class GraphModel(db.Model):
     selected_date = db.Column(db.String, nullable=False)
     selected_parameter = db.Column(db.Text, nullable=False)
     result_details = db.Column(db.String, nullable=False)
+    inference = db.Column(db.Text, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
     # Foreign key linking to ResultTable
     result_id = db.Column(db.Integer, db.ForeignKey('result_table.id'), nullable=True)
@@ -69,5 +72,10 @@ class ResultModel(db.Model):
     selected_date = db.Column(db.String, nullable=False)
     selected_parameter = db.Column(db.Text, nullable=False)
     geojson = db.Column(db.JSON, nullable=False)
-
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
     graph = db.relationship('GraphModel', backref='result_table', lazy=True)
+    
+    @hybrid_property
+    def port_id(self):
+        """Dynamically compute port as 8081 + id"""
+        return 8081 + self.id

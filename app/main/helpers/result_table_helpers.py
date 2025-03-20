@@ -43,9 +43,9 @@ def create_result_entry(user_id, tiff_min_max, selected_date, selected_parameter
     
     
     # Convert the numpy array to a string
-    tiff_min_max_str = np.array2string(tiff_min_max, separator=',')
+    tiff_min_max_str = np.array2string(tiff_min_max, separator = ',', 
+                                       formatter = {'float_kind' : lambda x : "0.0" if x == 0 else f"{x:.2f}"})
 
-    
     # Step 1: Create an entry in the ResultModel
     new_result = ResultModel(user_id=user_id, tiff='', excel='', tiff_min_max=tiff_min_max_str,selected_date=selected_date, selected_parameter=selected_parameter,
                               geojson =geojson,project_id=project_id)  # Store as a string

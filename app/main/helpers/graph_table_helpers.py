@@ -72,16 +72,18 @@ def generate_custom_dataframe(final_df, input_date, parameter):
     # Create the Unique_ID column (assuming FARM_ID is used as a unique identifier)
     temp_df['Unique_ID'] = final_df['FARM_ID'] ## became farm id now
 
+    temp_df['INFERENCE'] = final_df['INFERENCE']
+
     # Create the Result column by combining REDSI and INFERENCE
     if parameter == 'Crop Stress Biotic':
-        temp_df['Result'] = final_df.apply(lambda row: f"REDSI: {row['REDSI']}, INFERENCE: {row['INFERENCE']}", axis=1)
+        temp_df['Result'] = final_df['REDSI']
     
     elif parameter == 'Water Stress':
-        temp_df['Result'] = final_df.apply(lambda row: f" SWSI: {row['SWSI']} , INFERENCE: {row['INFERENCE']} , ET:{row['ET']}", axis=1)
+        temp_df['Result'] = final_df['SWSI']
 
     else :
         ## third parameter
-        temp_df['Result'] = final_df.apply(lambda row: f"REDSI: {row['REDSI']}, INFERENCE: {row['INFERENCE']}", axis=1)
+        temp_df['Result'] = final_df['CROP_YIELD']
 
     # Create a Parameter column
     temp_df['Parameter'] = parameter
@@ -113,6 +115,7 @@ def save_temp_df_to_db(temp_df,result_id,user_id):
             'selected_date': row['Date'],
             'selected_parameter': row['Parameter'],
             'result_details': row['Result'],
+            'inference' :row['INFERENCE']
         }
 
         # Save the row using the save_results function
@@ -158,8 +161,9 @@ def save_results(data,result_id,user_id):
         geojson=geojson_str,
         selected_date=data.get('selected_date'),
         selected_parameter=data.get('selected_parameter'),
-        # result_details=data.get('result_details'),
-        result_details=result_details_str,  
+        result_details=data.get('result_details'),
+        # result_details=result_details_str,  
+        inference = data.get('inference'),
         result_id=result_id
     )
 

@@ -6,10 +6,9 @@ from sentinelhub import CRS as sentinelCRS, BBox, SHConfig
 from s2cloudless import S2PixelCloudDetector
 import rasterio
 from rasterio.crs import CRS as rasterioCRS
-import requests
 import rasterio.mask
-from backend.app.main.crop_stress.sentinel2 import *
-from backend.app.main.crop_stress.utils import *
+from app.main.crop_stress.sentinel2 import *
+from app.main.crop_stress.utils import *
 import warnings
 from app.main.helpers.graph_table_helpers import generate_custom_dataframe,save_temp_df_to_db
 from app.main.helpers.result_table_helpers import create_result_entry
@@ -127,10 +126,6 @@ def sentinel_data_dict(bbox, input_date, extent):
     B10 = band10_reflectance_call(bbox, input_date, config)
     B11 = band11_reflectance_call(bbox, input_date, config)
     B12 = band12_reflectance_call(bbox, input_date, config)
-    NDVI = ndvi_layer_call(bbox, input_date, config)
-    LAI = lai_layer_call(bbox, input_date, config)
-    FAPAR = fapar_layer_call(bbox, input_date, config)
-    LSWI = lswi_layer_call(bbox, input_date, config)
 
     sentinel_data = {
         'B01' : B01,
@@ -144,10 +139,6 @@ def sentinel_data_dict(bbox, input_date, extent):
         'B10' : B10,
         'B11' : B11,
         'B12' : B12,
-        'NDVI' : NDVI,
-        'LAI' : LAI,
-        'FAPAR' : FAPAR,
-        'LSWI' : LSWI
     }
 
     width = sentinel_data['B04'].shape[1]
@@ -196,8 +187,9 @@ def cloud_detector(geojson_data, sentinel_data, width, height, transform):
 def get_min_max(tiff):
         tiff_flatten = tiff.flatten()
         tiff_unique = np.unique(tiff_flatten)
-        print(tiff_unique[:10])
-        print(tiff_unique[-10:])
+        tiff_unique = tiff_unique[tiff_unique != -9999.0]
+        print(tiff_unique[:5])
+        print(tiff_unique[-5:])
         tiff_min = None
         tiff_max = None
         if np.amin(tiff) == float('-inf'):
@@ -206,31 +198,36 @@ def get_min_max(tiff):
             tiff_max = tiff_unique[-2]
         else:
             tiff_min = np.nanmin(tiff)
+            if tiff_min == -9999.0:
+                tiff_min = tiff_unique[1]
             tiff_max = np.nanmax(tiff)
 
         print(tiff_min, tiff_max)
 
         print("TIFF Min Max calculated")
 
-        return np.array([round(tiff_min,2), round(tiff_max,2)])
+        return np.array([round(tiff_min, 2), round(tiff_max, 2)])
 
 
 ### REDSI CALCULATIONS
 
 def redsi_calc(geojson_data, sentinel_data, width, height, dtype, transform):
-    band4_ref = sentinel_data['BAND4_REF']
-    band5_ref = sentinel_data['BAND5_REF']
-    band7_ref = sentinel_data['BAND7_REF']
+    B04 = sentinel_data['B04']
+    B05 = sentinel_data['B05']
+    B07 = sentinel_data['B07']
     # 665nm --> wavelength of band4 reflectance
     # 705nm --> wavelength of band5 reflectance
     # 783nm --> wavelength of band7 reflectance
-    redsi = (((705 - 665) * (band7_ref - band4_ref)) - ((783 - 665) * (band5_ref - band4_ref))) / (2 * band4_ref)
+    redsi = (((705 - 665) * (B07 - B04)) - ((783 - 665) * (B05 - B04))) / (2 * B04)
 
     redsi_path = 'backend/app/main/output_data/REDSI.tiff'
     with rasterio.open(redsi_path, 'w', driver = 'GTiff', width = width, height = height, count = 1, dtype = dtype, crs = rasterioCRS.from_epsg(4326), transform = transform) as dst:
         dst.write(redsi, 1)
     clipping_raster(geojson_data, redsi_path)
     redsi_stats, redsi_mean_dict = zonal_stats_calc(geojson_data, redsi_path)
+
+    with rasterio.open('backend/app/main/output_data/REDSI.tiff') as src:
+        redsi = src.read(1)
     tiff_min_max = get_min_max(redsi)
 
     print('REDSI Calculated')
@@ -260,7 +257,7 @@ def stress_phase_calc(crop, input_date, geojson_data):
     stress_stage_dict = {}
     for i in range(len(geojson_data)):
         phase_dict = {}
-        planting_date = geojson_data['PLANT_DAY'][i].date()
+        planting_date = datetime.strptime(geojson_data['PLANT_DAY'][i], '%Y-%m-%dT%H:%M:%S').date()
         if crop == 'Sugarcane':
             if '2023-09-01' <= planting_date.strftime("%Y-%m-%d") <= '2023-12-31':    ## AUTUMN PLANTS
                 phase_dict = {
@@ -268,7 +265,7 @@ def stress_phase_calc(crop, input_date, geojson_data):
                     (f'{planting_date + timedelta(days = 50)}', f'{planting_date + timedelta(days = 120)}') : 'Tillering',
                     (f'{planting_date + timedelta(days = 120)}', f'{planting_date + timedelta(days = 175)}') : 'Grand Growth',
                     (f'{planting_date + timedelta(days = 175)}', f'{planting_date + timedelta(days = 250)}') : 'Summer',
-                    (f'{planting_date + timedelta(days = 250)}', f'{planting_date + timedelta(days = 700)}') : 'Maturity'
+                    (f'{planting_date + timedelta(days = 250)}', f'{planting_date + timedelta(days = 1000)}') : 'Maturity'
                 }
             elif '2024-01-01' <= planting_date.strftime("%Y-%m-%d") <= '2024-05-31':    ## SPRING PLANTS
                 phase_dict = {
@@ -277,9 +274,9 @@ def stress_phase_calc(crop, input_date, geojson_data):
                     (f'{planting_date + timedelta(days = 115)}', f'{planting_date + timedelta(days = 185)}') : 'Monsoon',
                     (f'{planting_date + timedelta(days = 185)}', f'{planting_date + timedelta(days = 218)}') : 'Grand Growth',
                     (f'{planting_date + timedelta(days = 218)}', f'{planting_date + timedelta(days = 250)}') : 'Later Grand Growth',
-                    (f'{planting_date + timedelta(days = 250)}', f'{planting_date + timedelta(days = 700)}') : 'Maturity'
+                    (f'{planting_date + timedelta(days = 250)}', f'{planting_date + timedelta(days = 1000)}') : 'Maturity'
                 }
-    
+
         for date_range, stage in phase_dict.items():
             start_date, end_date = map(parse_date, date_range)
             if start_date <= input_date <= end_date:
@@ -295,6 +292,7 @@ def stress_phase_calc(crop, input_date, geojson_data):
 def inferencing(crop, input_date, geojson_data, redsi_stats, redsi_mean_dict, masks_mean_dict):
     ratoon_dict = ratoon_dict_calc(geojson_data)
     stress_stage_dict = stress_phase_calc(crop, input_date, geojson_data)
+    print(stress_stage_dict)
     inference = {}
     sub_inference = {}
     for key, value in redsi_mean_dict.items():
@@ -476,6 +474,7 @@ def excel(stats, inference, sub_inference):
     for i in range(len(stats)):
         rows.append(stats[i]['properties'])
     stats_excel = pd.DataFrame(rows)
+    stats_excel.rename(columns = {'mean' : 'REDSI'}, inplace = True)
 
     inference_column = pd.DataFrame(list(inference.values()), columns = ['INFERENCE'])
     stats_excel['INFERENCE'] = inference_column
@@ -518,6 +517,8 @@ def generate_excel(crop, input_date, geojson_data, redsi_stats, redsi_mean_dict,
     inference, sub_inference = inferencing(crop, input_date, geojson_data, redsi_stats, redsi_mean_dict, masks_mean_dict)
     final_df = pd.DataFrame()
     final_df = excel(redsi_stats, inference, sub_inference) ## final excel
+    final_df['REDSI'] = final_df['REDSI'].round(2)
+    print(final_df)
     final_df.to_excel('backend/app/main/output_data/CROP_STRESS.xlsx', index = False)
 
     print("Excel generated")
@@ -546,7 +547,7 @@ def main (data,user_id):
                                                                                   bbox, extent, user_id)
     
     # generate excel,final_df and related stuff
-    final_df = generate_excel(crop, input_date, geojson_data, redsi_stats, redsi_mean_dict, masks_mean_dict)
+    final_df = generate_excel(crop[0], input_date, geojson_data, redsi_stats, redsi_mean_dict, masks_mean_dict)
 
     ## save result in result_table and get the result_id
     ## send paths of tiff and excel
@@ -558,7 +559,7 @@ def main (data,user_id):
                                     project_id,tiff_path,excel_path)
     
      # make temporary data_frame from final_df for that parameter
-    temp_df = generate_custom_dataframe(final_df,data.get("date"),"Crop Growth")
+    temp_df = generate_custom_dataframe(final_df,data.get("date"), "Crop Stress")
 
     # save that temporary data_frame in graph table
     save_temp_df_to_db(temp_df,result_id,user_id)

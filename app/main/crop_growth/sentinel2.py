@@ -1,5 +1,5 @@
 from sentinelhub import DataCollection, MimeType, WcsRequest, CustomUrlParam
-from backend.app.main.crop_growth.utils import *
+from app.main.crop_growth.utils import *
 import warnings
 
 warnings.filterwarnings("ignore")

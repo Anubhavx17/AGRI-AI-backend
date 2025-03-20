@@ -317,6 +317,7 @@ def rs_calc(geojson_data_dict, input_date, input_datetime_string, sentinel_data)
 
 def weather_api_call(geojson_data_dict, input_datetime_string, bbox):
     metadata = metadata_call(geojson_data_dict, input_datetime_string)
+    print(metadata)
     unix_time = metadata["features"][0]["properties"]["datetime"]
     date_string = unix_time.replace("T", " ").replace("Z", "")
     date_format = "%Y-%m-%d %H:%M:%S.%f"
@@ -392,7 +393,6 @@ def g_calc(geojson_data_dict, input_date, input_datetime_string, sentinel_data, 
 ### CROP HEIGHT DICTIONARY
 
 def crop_height(crop, sentinel_data):
-    crop = crop[0] # its because crop is a list, (just a single variable in the list, return that)
     sugarcane_height = ((-1) * 0.1695 * (sentinel_data['LAI'] * 2.3) * (sentinel_data['LAI'] * 2.3)) + (1.4576 * (sentinel_data['LAI'] * 2.3))
     crop_height_dict = {
         "Sugarcane" : sugarcane_height,
@@ -756,8 +756,9 @@ def cwsi_calc(R, G, H):
 def get_min_max(tiff):
         tiff_flatten = tiff.flatten()
         tiff_unique = np.unique(tiff_flatten)
-        print(tiff_unique[:10])
-        print(tiff_unique[-10:])
+        tiff_unique = tiff_unique[tiff_unique != -9999.0]
+        print(tiff_unique[:5])
+        print(tiff_unique[-5:])
         tiff_min = None
         tiff_max = None
         if np.amin(tiff) == float('-inf'):
@@ -766,13 +767,15 @@ def get_min_max(tiff):
             tiff_max = tiff_unique[-2]
         else:
             tiff_min = np.nanmin(tiff)
+            if tiff_min == -9999.0:
+                tiff_min = tiff_unique[1]
             tiff_max = np.nanmax(tiff)
 
         print(tiff_min, tiff_max)
 
         print("TIFF Min Max calculated")
 
-        return np.array([round(tiff_min,2), round(tiff_max,2)])
+        return np.array([round(tiff_min, 2), round(tiff_max, 2)])
      
 
 ### SWSI CALCULATIONS
@@ -838,6 +841,7 @@ def growth_phase_calc(crop, input_date, geojson_data):
 
 
 ### CREATING METADATA.TXT FILE
+
 def metadata_file(geojson_data_dict, input_datetime_string, sentinel_data, height, width, dtype, transform, user_id):
     metadata = metadata_call(geojson_data_dict, input_datetime_string)
     os.makedirs(f"backend/app/main/water_stress/DL_CLOUD_MASKING/{metadata['features'][0]['id']}", exist_ok = True)
@@ -1040,6 +1044,8 @@ def excel(stats, inference, df):
     return final_df
 
 
+### DICTIONARY TO GEODATAFRAME CONVERSION
+
 def dict_to_gdf(geojson_data):
     """
     Converts a GeoJSON-like dictionary into a GeoDataFrame, keeping the same structure.
@@ -1054,6 +1060,8 @@ def dict_to_gdf(geojson_data):
     
     return gdf
 
+
+### GEODATAFRAME TO DICTIONARY CONVERSION
 
 def gdf_to_dict(gdf):
     """
@@ -1071,12 +1079,18 @@ def gdf_to_dict(gdf):
         ]
     }
 
+
+### FETCHING INPUT DATA
+
 def get_data(data):
     project_id = data.get('project_id')
     geojson_data_dict, geojson_data, input_date, input_datetime_string, crop, selected_parameter = input_data(data)
     bbox, extent = dimensions(geojson_data)
 
     return geojson_data_dict, geojson_data, input_date, input_datetime_string, crop, selected_parameter, bbox, extent, project_id
+
+
+### TIFF GENERATION
 
 def generate_tiff(geojson_data_dict,geojson_data, input_date, input_datetime_string, crop, bbox, extent, user_id):
     sentinel_data, width, height, dtype, transform = sentinel_data_dict(bbox, input_date, extent)
@@ -1088,10 +1102,16 @@ def generate_tiff(geojson_data_dict,geojson_data, input_date, input_datetime_str
 
     return  swsi_df, swsi_mean_dict, masks_mean_dict, mask_path, et_stats, tiff_min_max
 
+
+### FINAL EXCEL GENERATION
+
 def generate_excel(masks_mean_dict, crop, input_date, geojson_data, et_stats, swsi_df, swsi_mean_dict, mask_path):
     inference = inferencing(swsi_mean_dict, masks_mean_dict, crop, input_date, geojson_data)
     final_df = pd.DataFrame()
     final_df = excel(et_stats, inference, swsi_df) ## final excel
+    final_df['SWSI'] = final_df['SWSI'].round(2)
+    final_df['ET'] = final_df['ET'].round(2)
+    print(final_df)
     final_df.to_excel('backend/app/main/output_data/WATER_STRESS.xlsx', index = False)
     shutil.rmtree(os.path.dirname(mask_path))
     
@@ -1118,10 +1138,10 @@ def main(data,user_id):
     # generate tiff, tiff_min_max and related stuff
     (swsi_df, swsi_mean_dict, masks_mean_dict, 
      mask_path, et_stats, tiff_min_max) = generate_tiff(geojson_data_dict,geojson_data, input_date, 
-                                                        input_datetime_string, crop,bbox,extent,user_id)
+                                                        input_datetime_string, crop[0], bbox, extent, user_id)
     
     # generate excel,final_df and related stuff
-    final_df = generate_excel(masks_mean_dict, crop, input_date, geojson_data,et_stats, swsi_df,swsi_mean_dict,
+    final_df = generate_excel(masks_mean_dict, crop[0], input_date, geojson_data,et_stats, swsi_df,swsi_mean_dict,
                    mask_path)
     
     ## save result in result_table and get the result_id

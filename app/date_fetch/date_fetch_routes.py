@@ -62,7 +62,7 @@ def token_call():
 def cloud_cover_call(geojson_data, input_datetime_string,parameter):
     url = ""
 
-    if parameter in ["Crop Growth Report", "Crop Stress (Biotic)"]:
+    if parameter in ["Crop Growth", "Crop Stress"]:
         collection = "sentinel-2-l2a"
         url = "https://services.sentinel-hub.com/api/v1/catalog/1.0.0/search"
         

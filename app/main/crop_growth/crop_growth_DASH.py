@@ -8,8 +8,8 @@ import rasterio
 from rasterio.crs import CRS as rasterioCRS
 import requests
 import rasterio.mask
-from backend.app.main.crop_growth.sentinel2 import *
-from backend.app.main.crop_growth.utils import *
+from app.main.crop_growth.sentinel2 import *
+from app.main.crop_growth.utils import *
 import warnings
 from app.main.helpers.graph_table_helpers import generate_custom_dataframe,save_temp_df_to_db
 from app.main.helpers.result_table_helpers import create_result_entry
@@ -269,8 +269,9 @@ def harvest_index_dict(crop):
 def get_min_max(tiff):
         tiff_flatten = tiff.flatten()
         tiff_unique = np.unique(tiff_flatten)
-        print(tiff_unique[:10])
-        print(tiff_unique[-10:])
+        tiff_unique = tiff_unique[tiff_unique != -9999.0]
+        print(tiff_unique[:5])
+        print(tiff_unique[-5:])
         tiff_min = None
         tiff_max = None
         if np.amin(tiff) == float('-inf'):
@@ -279,13 +280,15 @@ def get_min_max(tiff):
             tiff_max = tiff_unique[-2]
         else:
             tiff_min = np.nanmin(tiff)
+            if tiff_min == -9999.0:
+                tiff_min = tiff_unique[1]
             tiff_max = np.nanmax(tiff)
 
         print(tiff_min, tiff_max)
 
         print("TIFF Min Max calculated")
 
-        return np.array([round(tiff_min,2), round(tiff_max,2)])
+        return np.array([round(tiff_min, 2), round(tiff_max, 2)])
 
 
 ### CROP YIELD CALCULATIONS
@@ -300,6 +303,9 @@ def cy_calc(geojson_data, input_date, crop, sentinel_data, bbox, width, height, 
         dst.write(cy, 1)
     clipping_raster(geojson_data, cy_path)
     cy_stats, cy_mean_dict = zonal_stats_calc(geojson_data, cy_path)
+    
+    with rasterio.open('backend/app/main/output_data/CY.tiff') as src:
+        cy = src.read(1)
     tiff_min_max = get_min_max(cy)
 
     print('Crop Yield calculated')
@@ -359,7 +365,7 @@ def growth_phase_calc(crop, input_date, geojson_data):
     growth_stage_dict = {}
     for i in range(len(geojson_data)):
         phase_dict = {}
-        planting_date = geojson_data['PLANT_DAY'][i].date()
+        planting_date = datetime.strptime(geojson_data['PLANT_DAY'][i], '%Y-%m-%dT%H:%M:%S').date()
         if crop == 'Sugarcane':
             if '2023-09-01' <= planting_date.strftime("%Y-%m-%d") <= '2023-12-31':    ## AUTUMN PLANTS
                 phase_dict = {
@@ -367,7 +373,7 @@ def growth_phase_calc(crop, input_date, geojson_data):
                     (f'{planting_date + timedelta(days = 50)}', f'{planting_date + timedelta(days = 120)}') : 'Tillering',
                     (f'{planting_date + timedelta(days = 120)}', f'{planting_date + timedelta(days = 175)}') : 'Grand_Growth',
                     (f'{planting_date + timedelta(days = 175)}', f'{planting_date + timedelta(days = 250)}') : 'Summer',
-                    (f'{planting_date + timedelta(days = 250)}', f'{planting_date + timedelta(days = 700)}') : 'Maturity'
+                    (f'{planting_date + timedelta(days = 250)}', f'{planting_date + timedelta(days = 1000)}') : 'Maturity'
                 }
             elif '2024-01-01' <= planting_date.strftime("%Y-%m-%d") <= '2024-05-31':    ## SPRING PLANTS
                 phase_dict = {
@@ -375,7 +381,7 @@ def growth_phase_calc(crop, input_date, geojson_data):
                     (f'{planting_date + timedelta(days = 45)}', f'{planting_date + timedelta(days = 115)}') : 'Tillering',
                     (f'{planting_date + timedelta(days = 115)}', f'{planting_date + timedelta(days = 185)}') : 'Monsoon',
                     (f'{planting_date + timedelta(days = 185)}', f'{planting_date + timedelta(days = 250)}') : 'Grand_Growth',
-                    (f'{planting_date + timedelta(days = 250)}', f'{planting_date + timedelta(days = 700)}') : 'Maturity'
+                    (f'{planting_date + timedelta(days = 250)}', f'{planting_date + timedelta(days = 1000)}') : 'Maturity'
                 }
     
         for date_range, stage in phase_dict.items():
@@ -720,6 +726,7 @@ def excel(stats, inference):
     for i in range(len(stats)):
         rows.append(stats[i]['properties'])
     stats_excel = pd.DataFrame(rows)
+    stats_excel.rename(columns = {'mean' : 'CROP_YIELD'}, inplace = True)
 
     inference_column = pd.DataFrame(list(inference.values()), columns = ['INFERENCE'])
     stats_excel['INFERENCE'] = inference_column
@@ -761,6 +768,7 @@ def generate_excel(crop, input_date, geojson_data, cy_stats, cy_mean_dict, masks
     inference = inferencing(crop, input_date, geojson_data, cy_mean_dict, masks_mean_dict, ndvi_mean_dict, lai_mean_dict)
     final_df = pd.DataFrame()
     final_df = excel(cy_stats, inference) ## final excel
+    final_df['CROP_YIELD'] = final_df['CROP_YIELD'].round(2)
     final_df.to_excel('backend/app/main/output_data/CROP_GROWTH.xlsx', index = False)
 
     print("Excel generated")
@@ -782,15 +790,15 @@ def main (data,user_id):
     ## send to frontend
 
     # get data (recieving data from frontend and changing format etc)
-    (geojson_data, input_date, input_datetime_string, crop, selected_parameter, bbox, extent, project_id) = get_data(data)
+    (geojson_data, input_date, crop, selected_parameter, bbox, extent, project_id) = get_data(data)
 
     # generate tiff, tiff_min_max and related stuff
     (cy_stats, cy_mean_dict, masks_mean_dict, 
-     ndvi_mean_dict, lai_mean_dict, tiff_min_max) = generate_tiff(geojson_data, input_date, input_datetime_string, 
-                                                                  crop, bbox, extent, user_id)
+     ndvi_mean_dict, lai_mean_dict, tiff_min_max) = generate_tiff(geojson_data, input_date, 
+                                                                  crop[0], bbox, extent, user_id)
     
     # generate excel,final_df and related stuff
-    final_df = generate_excel(crop, input_date, geojson_data, cy_stats, cy_mean_dict, masks_mean_dict, ndvi_mean_dict, lai_mean_dict)
+    final_df = generate_excel(crop[0], input_date, geojson_data, cy_stats, cy_mean_dict, masks_mean_dict, ndvi_mean_dict, lai_mean_dict)
 
     ## save result in result_table and get the result_id
     ## send paths of tiff and excel
@@ -802,7 +810,7 @@ def main (data,user_id):
                                     project_id,tiff_path,excel_path)
     
      # make temporary data_frame from final_df for that parameter
-    temp_df = generate_custom_dataframe(final_df,data.get("date"),"Crop Growth")
+    temp_df = generate_custom_dataframe(final_df,data.get("date"), "Crop Growth")
 
     # save that temporary data_frame in graph table
     save_temp_df_to_db(temp_df,result_id,user_id)

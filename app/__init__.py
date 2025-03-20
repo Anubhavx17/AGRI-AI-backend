@@ -27,17 +27,21 @@ def create_app():
     from app.save_project.project_routes import project_bp
     from app.login_auth.auth import auth_bp
     from app.date_fetch.date_fetch_routes import date_fetch_bp
-    from app.main.crop_stress.crop_stress_routes import crop_stress_bp
     # from app.tile_server.tile import tile_server_bp
     # from app.main.fetch_result_table import fetch_result_bp
     from app.fetch_result.fetch_result import result_fetch_bp
-    from app.main.water_stress.SCRIPTS.water_stress_api import water_stress_bp
+    from app.main.water_stress.SCRIPTS.water_stress_api import water_stress_bp 
+    from app.main.crop_stress.crop_stress_api import crop_stress_bp
+    from app.main.crop_growth.crop_growth_api import crop_growth_bp
+    from app.main.insights.summary_page_api import summary_page_bp
 
     app.register_blueprint(date_fetch_bp)
-    app.register_blueprint(crop_stress_bp)
     app.register_blueprint(project_bp)
     app.register_blueprint(auth_bp)
     app.register_blueprint(water_stress_bp)
+    app.register_blueprint(crop_stress_bp)
+    app.register_blueprint(crop_growth_bp)
+    app.register_blueprint(summary_page_bp)
     # app.register_blueprint(tile_server_bp)
     app.register_blueprint(result_fetch_bp)
     
