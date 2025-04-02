@@ -286,7 +286,7 @@ def metadata_call(geojson_data_dict, input_datetime_string):
 
 def sun_earth_dist(input_date):
     distance_data = {}
-    with open('backend/app/main/water_stress/SCRIPTS/earth_sun.csv', newline='') as csvfile:
+    with open(r'C:/Users/ANUBHAV/OneDrive/Desktop/AGRI_DCM/backend/app/main/water_stress/SCRIPTS/earth_sun.csv', newline='') as csvfile:
         reader = csv.DictReader(csvfile)
         for row in reader:
             distance_data[row['data']] = {'d': row['d']}
@@ -723,7 +723,7 @@ def ghi_calc(input_date, bbox):
 
 ### EVAPO-TRANSPORATION CALCULATIONS
 
-def et_calc(geojson_data_dict, geojson_data, input_date, input_datetime_string, crop, sentinel_data, bbox, width , height, transform):
+def et_calc(geojson_data_dict, geojson_data, input_date, input_datetime_string, crop, sentinel_data, bbox, width , height, transform,user_id):
     GHI = ghi_calc(input_date, bbox)
     LHF, R, G, H = lhf_calc(geojson_data_dict, input_date, input_datetime_string, crop, sentinel_data, bbox)
     d_to_s = 86400     ## SECONDS IN A DAY
@@ -731,7 +731,7 @@ def et_calc(geojson_data_dict, geojson_data, input_date, input_datetime_string, 
     ET = (d_to_s / (lhv * 1000000)) * (LHF / (R - G)) * GHI
     ET[ET < 0] = 0
 
-    et_path = 'backend/app/main/output_data/ET.tiff'
+    et_path = fr'C:/Users/ANUBHAV/OneDrive/Desktop/AGRI_DCM/backend/app/main/{user_id}/output_data/ET.tiff'
     with rasterio.open(et_path, 'w', driver = 'GTiff', width = width, height = height, count = 1, dtype = ET.dtype, crs = rasterioCRS.from_epsg(4326), transform = transform) as dst:
         dst.write(ET, 1)
     clipping_raster(geojson_data, et_path)
@@ -781,7 +781,7 @@ def get_min_max(tiff):
 ### SWSI CALCULATIONS
 ### SWSI --> SOIL WATER STRESS INDEX
 
-def swsi_calc(geojson_data, R, G, H, width , height, transform):
+def swsi_calc(geojson_data, R, G, H, width , height, transform,user_id):
     c1 = 0.46307
     c2 = 1.8094
     cwsi = cwsi_calc(R, G, H)
@@ -796,7 +796,7 @@ def swsi_calc(geojson_data, R, G, H, width , height, transform):
             if swsi[i][j] == np.nan:
                 print(swsi[i][j])
 
-    swsi_path = 'backend/app/main/output_data/SWSI.tiff'
+    swsi_path = fr'C:/Users/ANUBHAV/OneDrive/Desktop/AGRI_DCM/backend/app/main/{user_id}/output_data/SWSI.tiff'
     with rasterio.open(swsi_path, 'w', driver = 'GTiff', width = width, height = height, count = 1, dtype = swsi.dtype, crs = rasterioCRS.from_epsg(4326), transform = transform) as dst:
         dst.write(swsi, 1)
     clipping_raster(geojson_data, swsi_path)
@@ -844,7 +844,7 @@ def growth_phase_calc(crop, input_date, geojson_data):
 
 def metadata_file(geojson_data_dict, input_datetime_string, sentinel_data, height, width, dtype, transform, user_id):
     metadata = metadata_call(geojson_data_dict, input_datetime_string)
-    os.makedirs(f"backend/app/main/water_stress/DL_CLOUD_MASKING/{metadata['features'][0]['id']}", exist_ok = True)
+    os.makedirs(f"C:\\Users\\ANUBHAV\\OneDrive\\Desktop\\AGRI_DCM\\backend\\app\\main\\water_stress\\DL_CLOUD_MASKING\\{metadata['features'][0]['id']}", exist_ok = True)
     mtl_file = f"""GROUP = LANDSAT_METADATA_FILE
     GROUP = PROJECTION_ATTRIBUTES
         MAP_PROJECTION = "UTM"
@@ -900,41 +900,41 @@ END_GROUP = LANDSAT_METADATA_FILE
 END
 """
 
-    metadata_path = f"backend/app/main/water_stress/DL_CLOUD_MASKING/{metadata['features'][0]['id']}/{metadata['features'][0]['id']}_MTL.txt"
+    metadata_path = f"C:/Users/ANUBHAV/OneDrive/Desktop/AGRI_DCM/backend/app/main/water_stress/DL_CLOUD_MASKING/{metadata['features'][0]['id']}/{metadata['features'][0]['id']}_MTL.txt"
     with open(metadata_path, "w") as file:
         file.write(mtl_file)
 
-    b2_path = f"backend/app/main/water_stress/DL_CLOUD_MASKING/{metadata['features'][0]['id']}/{metadata['features'][0]['id']}_B2.tif"
+    b2_path = f"C:/Users/ANUBHAV/OneDrive/Desktop/AGRI_DCM/backend/app/main/water_stress/DL_CLOUD_MASKING/{metadata['features'][0]['id']}/{metadata['features'][0]['id']}_B2.tif"
     b2 = sentinel_data['B02']
     with rasterio.open(b2_path, 'w', driver = 'GTiff', width = width, height = height, count = 1, dtype = dtype, crs = rasterioCRS.from_epsg(4326), transform = transform) as dst:
         dst.write(b2, 1)
 
-    b3_path = f"backend/app/main/water_stress/DL_CLOUD_MASKING/{metadata['features'][0]['id']}/{metadata['features'][0]['id']}_B3.tif"
+    b3_path = f"C:/Users/ANUBHAV/OneDrive/Desktop/AGRI_DCM/backend/app/main/water_stress/DL_CLOUD_MASKING/{metadata['features'][0]['id']}/{metadata['features'][0]['id']}_B3.tif"
     b3 = sentinel_data['B03']
     with rasterio.open(b3_path, 'w', driver = 'GTiff', width = width, height = height, count = 1, dtype = dtype, crs = rasterioCRS.from_epsg(4326), transform = transform) as dst:
         dst.write(b3, 1)
 
-    b4_path = f"backend/app/main/water_stress/DL_CLOUD_MASKING/{metadata['features'][0]['id']}/{metadata['features'][0]['id']}_B4.tif"
+    b4_path = f"C:/Users/ANUBHAV/OneDrive/Desktop/AGRI_DCM/backend/app/main/water_stress/DL_CLOUD_MASKING/{metadata['features'][0]['id']}/{metadata['features'][0]['id']}_B4.tif"
     b4 = sentinel_data['B04']
     with rasterio.open(b4_path, 'w', driver = 'GTiff', width = width, height = height, count = 1, dtype = dtype, crs = rasterioCRS.from_epsg(4326), transform = transform) as dst:
         dst.write(b4, 1)
 
-    b5_path = f"backend/app/main/water_stress/DL_CLOUD_MASKING/{metadata['features'][0]['id']}/{metadata['features'][0]['id']}_B5.tif"
+    b5_path = f"C:/Users/ANUBHAV/OneDrive/Desktop/AGRI_DCM/backend/app/main/water_stress/DL_CLOUD_MASKING/{metadata['features'][0]['id']}/{metadata['features'][0]['id']}_B5.tif"
     b5 = sentinel_data['B05']
     with rasterio.open(b5_path, 'w', driver = 'GTiff', width = width, height = height, count = 1, dtype = dtype, crs = rasterioCRS.from_epsg(4326), transform = transform) as dst:
         dst.write(b5, 1)
 
-    b6_path = f"backend/app/main/water_stress/DL_CLOUD_MASKING/{metadata['features'][0]['id']}/{metadata['features'][0]['id']}_B6.tif"
+    b6_path = f"C:/Users/ANUBHAV/OneDrive/Desktop/AGRI_DCM/backend/app/main/water_stress/DL_CLOUD_MASKING/{metadata['features'][0]['id']}/{metadata['features'][0]['id']}_B6.tif"
     b6 = sentinel_data ['B06']
     with rasterio.open(b6_path, 'w', driver = 'GTiff', width = width, height = height, count = 1, dtype = dtype, crs = rasterioCRS.from_epsg(4326), transform = transform) as dst:
         dst.write(b6, 1)
 
-    b7_path = f"backend/app/main/water_stress/DL_CLOUD_MASKING/{metadata['features'][0]['id']}/{metadata['features'][0]['id']}_B7.tif"
+    b7_path = f"C:/Users/ANUBHAV/OneDrive/Desktop/AGRI_DCM/backend/app/main/water_stress/DL_CLOUD_MASKING/{metadata['features'][0]['id']}/{metadata['features'][0]['id']}_B7.tif"
     b7 = sentinel_data['B07']
     with rasterio.open(b7_path, 'w', driver = 'GTiff', width = width, height = height, count = 1, dtype = dtype, crs = rasterioCRS.from_epsg(4326), transform = transform) as dst:
         dst.write(b7, 1)
 
-    bqa_path = f"backend/app/main/water_stress/DL_CLOUD_MASKING/{metadata['features'][0]['id']}/{metadata['features'][0]['id']}_BQA.tif"
+    bqa_path = f"C:/Users/ANUBHAV/OneDrive/Desktop/AGRI_DCM/backend/app/main/water_stress/DL_CLOUD_MASKING/{metadata['features'][0]['id']}/{metadata['features'][0]['id']}_BQA.tif"
     bqa = sentinel_data['BQA']
     with rasterio.open(bqa_path, 'w', driver = 'GTiff', width = width, height = height, count = 1, dtype = dtype, crs = rasterioCRS.from_epsg(4326), transform = transform) as dst:
         dst.write(bqa, 1)
@@ -949,7 +949,8 @@ def cloud_masking(geojson_data_dict, geojson_data, input_datetime_string, sentin
     utils.select_cuda_device("gpu")
     satname = "L8"
     namemodel = "rgbiswir"
-    landsatimage = f"backend/app/main/water_stress/DL_CLOUD_MASKING/{metadata['features'][0]['id']}"
+    landsatimage = f"C:\\Users\\ANUBHAV\\OneDrive\\Desktop\\AGRI_DCM\\backend\\app\\main\\water_stress\\DL_CLOUD_MASKING\\{metadata['features'][0]['id']}"
+
     satobj = l8image.L8Image(landsatimage)
     model = utils.Model(satname = satname, namemodel = namemodel)
     cloud_prob_bin = model.predict(satobj)
@@ -1095,8 +1096,8 @@ def get_data(data):
 def generate_tiff(geojson_data_dict,geojson_data, input_date, input_datetime_string, crop, bbox, extent, user_id):
     sentinel_data, width, height, dtype, transform = sentinel_data_dict(bbox, input_date, extent)
     et_stats, R, G, H = et_calc(geojson_data_dict, geojson_data, input_date, input_datetime_string, crop, 
-                                sentinel_data, bbox, width, height, transform)
-    swsi_df, swsi_mean_dict, tiff_min_max = swsi_calc(geojson_data, R, G, H, width, height, transform)
+                                sentinel_data, bbox, width, height, transform,user_id)
+    swsi_df, swsi_mean_dict, tiff_min_max = swsi_calc(geojson_data, R, G, H, width, height, transform,user_id)
     _, masks_mean_dict, mask_path = cloud_masking(geojson_data_dict, geojson_data, input_datetime_string, 
                                                   sentinel_data, height, width, dtype, transform, user_id)
 
@@ -1105,14 +1106,16 @@ def generate_tiff(geojson_data_dict,geojson_data, input_date, input_datetime_str
 
 ### FINAL EXCEL GENERATION
 
-def generate_excel(masks_mean_dict, crop, input_date, geojson_data, et_stats, swsi_df, swsi_mean_dict, mask_path):
+def generate_excel(masks_mean_dict, crop, input_date, geojson_data, et_stats, swsi_df, swsi_mean_dict, mask_path,user_id):
     inference = inferencing(swsi_mean_dict, masks_mean_dict, crop, input_date, geojson_data)
     final_df = pd.DataFrame()
     final_df = excel(et_stats, inference, swsi_df) ## final excel
-    final_df['SWSI'] = final_df['SWSI'].round(2)
-    final_df['ET'] = final_df['ET'].round(2)
-    print(final_df)
-    final_df.to_excel('backend/app/main/output_data/WATER_STRESS.xlsx', index = False)
+    # final_df['SWSI'] = final_df['SWSI'].round(2)
+    # final_df['ET'] = final_df['ET'].round(2)
+    # Convert SWSI & ET to numeric, then round
+    final_df['SWSI'] = pd.to_numeric(final_df['SWSI'], errors='coerce').round(2)
+    final_df['ET'] = pd.to_numeric(final_df['ET'], errors='coerce').round(2)
+    final_df.to_excel(fr'C:/Users/ANUBHAV/OneDrive/Desktop/AGRI_DCM/backend/app/main/{user_id}/output_data/WATER_STRESS.xlsx', index = False)
     shutil.rmtree(os.path.dirname(mask_path))
     
     return final_df
@@ -1142,12 +1145,12 @@ def main(data,user_id):
     
     # generate excel,final_df and related stuff
     final_df = generate_excel(masks_mean_dict, crop[0], input_date, geojson_data,et_stats, swsi_df,swsi_mean_dict,
-                   mask_path)
+                   mask_path,user_id)
     
     ## save result in result_table and get the result_id
     ## send paths of tiff and excel
-    tiff_path = 'backend/app/main/output_data/ET.tiff'
-    excel_path = 'backend/app/main/output_data/WATER_STRESS.xlsx'
+    tiff_path = fr'C:/Users/ANUBHAV/OneDrive/Desktop/AGRI_DCM/backend/app/main/{user_id}/output_data/ET.tiff'
+    excel_path = fr'C:/Users/ANUBHAV/OneDrive/Desktop/AGRI_DCM/backend/app/main/{user_id}/output_data/WATER_STRESS.xlsx'
 
     ## save result(excel,tiff,tiff_min_max,project_id) in result_table and get the result_id
     result_id = create_result_entry(user_id, tiff_min_max, data.get('date'), data.get('selectedParameter'), data.get('GeojsonData'),

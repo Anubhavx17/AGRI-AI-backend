@@ -151,7 +151,7 @@ def sentinel_data_dict(bbox, input_date, extent):
 
 ### CLOUD MASK CALCULATIONS
 
-def cloud_detector(geojson_data, sentinel_data, width, height, transform):
+def cloud_detector(geojson_data, sentinel_data, width, height, transform,user_id):
     band1_ref = sentinel_data['B01']
     band2_ref = sentinel_data['B02']
     band4_ref = sentinel_data['B04']
@@ -171,7 +171,7 @@ def cloud_detector(geojson_data, sentinel_data, width, height, transform):
     cloud_prob = cloud_detector.get_cloud_probability_maps(layer_stack[np.newaxis, ...])
     cloud_mask = cloud_detector.get_cloud_masks(layer_stack[np.newaxis, ...])
 
-    mask_path = 'backend/app/main/output_data/STRESS_MASK.tiff'
+    mask_path = fr'C:\Users\ANUBHAV\OneDrive\Desktop\AGRI_DCM\backend\app\main\{user_id}\output_data\STRESS_MASK.tiff'
     with rasterio.open(mask_path, 'w', driver = 'GTiff', width = width, height = height, count = 1, dtype = cloud_mask[0].dtype, crs = rasterioCRS.from_epsg(4326), transform = transform) as dst:
         dst.write(cloud_mask[0], 1)
     clipping_raster(geojson_data, mask_path)
@@ -211,7 +211,7 @@ def get_min_max(tiff):
 
 ### REDSI CALCULATIONS
 
-def redsi_calc(geojson_data, sentinel_data, width, height, dtype, transform):
+def redsi_calc(geojson_data, sentinel_data, width, height, dtype, transform,user_id):
     B04 = sentinel_data['B04']
     B05 = sentinel_data['B05']
     B07 = sentinel_data['B07']
@@ -220,13 +220,13 @@ def redsi_calc(geojson_data, sentinel_data, width, height, dtype, transform):
     # 783nm --> wavelength of band7 reflectance
     redsi = (((705 - 665) * (B07 - B04)) - ((783 - 665) * (B05 - B04))) / (2 * B04)
 
-    redsi_path = 'backend/app/main/output_data/REDSI.tiff'
+    redsi_path = fr'C:\Users\ANUBHAV\OneDrive\Desktop\AGRI_DCM\backend\app\main\{user_id}\output_data\REDSI.tiff'
     with rasterio.open(redsi_path, 'w', driver = 'GTiff', width = width, height = height, count = 1, dtype = dtype, crs = rasterioCRS.from_epsg(4326), transform = transform) as dst:
         dst.write(redsi, 1)
     clipping_raster(geojson_data, redsi_path)
     redsi_stats, redsi_mean_dict = zonal_stats_calc(geojson_data, redsi_path)
 
-    with rasterio.open('backend/app/main/output_data/REDSI.tiff') as src:
+    with rasterio.open(fr'C:\Users\ANUBHAV\OneDrive\Desktop\AGRI_DCM\backend\app\main\{user_id}\output_data\REDSI.tiff') as src:
         redsi = src.read(1)
     tiff_min_max = get_min_max(redsi)
 
@@ -503,8 +503,8 @@ def get_data(data):
 
 def generate_tiff(geojson_data, input_date, bbox, extent, user_id):
     sentinel_data, width, height, dtype, transform = sentinel_data_dict(bbox, input_date, extent)
-    redsi_stats, redsi_mean_dict, tiff_min_max = redsi_calc(geojson_data, sentinel_data, width, height, dtype, transform)
-    masks_mean_dict = cloud_detector(geojson_data, sentinel_data, width, height, transform)
+    redsi_stats, redsi_mean_dict, tiff_min_max = redsi_calc(geojson_data, sentinel_data, width, height, dtype, transform,user_id)
+    masks_mean_dict = cloud_detector(geojson_data, sentinel_data, width, height, transform,user_id)
 
     print("Tiff generated")
 
@@ -513,13 +513,13 @@ def generate_tiff(geojson_data, input_date, bbox, extent, user_id):
 
 ### FINAL EXCEL GENERATION
 
-def generate_excel(crop, input_date, geojson_data, redsi_stats, redsi_mean_dict, masks_mean_dict):
+def generate_excel(crop, input_date, geojson_data, redsi_stats, redsi_mean_dict, masks_mean_dict,user_id):
     inference, sub_inference = inferencing(crop, input_date, geojson_data, redsi_stats, redsi_mean_dict, masks_mean_dict)
     final_df = pd.DataFrame()
     final_df = excel(redsi_stats, inference, sub_inference) ## final excel
     final_df['REDSI'] = final_df['REDSI'].round(2)
     print(final_df)
-    final_df.to_excel('backend/app/main/output_data/CROP_STRESS.xlsx', index = False)
+    final_df.to_excel(fr'C:\Users\ANUBHAV\OneDrive\Desktop\AGRI_DCM\backend\app\main\{user_id}\output_data\CROP_STRESS.xlsx', index = False)
 
     print("Excel generated")
     
@@ -547,12 +547,12 @@ def main (data,user_id):
                                                                                   bbox, extent, user_id)
     
     # generate excel,final_df and related stuff
-    final_df = generate_excel(crop[0], input_date, geojson_data, redsi_stats, redsi_mean_dict, masks_mean_dict)
+    final_df = generate_excel(crop[0], input_date, geojson_data, redsi_stats, redsi_mean_dict, masks_mean_dict,user_id)
 
     ## save result in result_table and get the result_id
     ## send paths of tiff and excel
-    tiff_path = 'backend/app/main/output_data/REDSI.tiff'
-    excel_path = 'backend/app/main/output_data/CROP_STRESS.xlsx'
+    tiff_path = fr'C:\Users\ANUBHAV\OneDrive\Desktop\AGRI_DCM\backend\app\main\{user_id}\output_data\REDSI.tiff'
+    excel_path = fr'C:\Users\ANUBHAV\OneDrive\Desktop\AGRI_DCM\backend\app\main\{user_id}\output_data\CROP_STRESS.xlsx'
 
     ## save result(excel,tiff,tiff_min_max,project_id) in result_table and get the result_id
     result_id = create_result_entry(user_id, tiff_min_max, data.get('date'), data.get('selectedParameter'), data.get('GeojsonData'),

@@ -52,7 +52,7 @@ def run_model():
             "status": "result_already_exists"
         }), 200
         
-        create_user_folder(user_id, folder_name = "output_data", base_dir = 'backend/app/main')
+        create_user_folder(user_id, folder_name = "output_data", base_dir = r'C:\Users\ANUBHAV\OneDrive\Desktop\AGRI_DCM\backend\app\main')
     
         # initialize user wise folders - for dl_cloud_masking and output_data folder(tiff,excel) r locally
         # Call the main function with crops and use those local folders only
@@ -60,7 +60,7 @@ def run_model():
         # existing_result_response = result_already_exists(data.get('date'), selected_parameter, project_id, user_id)
 
         main(data,user_id) ## call main function
-        delete_user_folder(user_id, base_dir = 'backend/app/main')
+        delete_user_folder(user_id, base_dir = r'C:\Users\ANUBHAV\OneDrive\Desktop\AGRI_DCM\backend\app\main')
 
         # delete user wise folder(dl cloud masking) and output_data folder 
         return jsonify({

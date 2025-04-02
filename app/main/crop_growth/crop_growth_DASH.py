@@ -160,7 +160,7 @@ def sentinel_data_dict(bbox, input_date, extent):
 
 ### CLOUD MASK CALCULATIONS
 
-def cloud_detector(geojson_data, sentinel_data, width, height, transform):
+def cloud_detector(geojson_data, sentinel_data, width, height, transform,user_id):
     band1_ref = sentinel_data['B01']
     band2_ref = sentinel_data['B02']
     band4_ref = sentinel_data['B04']
@@ -180,7 +180,7 @@ def cloud_detector(geojson_data, sentinel_data, width, height, transform):
     cloud_prob = cloud_detector.get_cloud_probability_maps(layer_stack[np.newaxis, ...])
     cloud_mask = cloud_detector.get_cloud_masks(layer_stack[np.newaxis, ...])
 
-    mask_path = 'backend/app/main/output_data/GROWTH_MASK.tiff'
+    mask_path = fr'C:\Users\ANUBHAV\OneDrive\Desktop\AGRI_DCM\backend\app\main\{user_id}\output_data\GROWTH_MASK.tiff'
     with rasterio.open(mask_path, 'w', driver = 'GTiff', width = width, height = height, count = 1, dtype = cloud_mask[0].dtype, crs = rasterioCRS.from_epsg(4326), transform = transform) as dst:
         dst.write(cloud_mask[0], 1)
     clipping_raster(geojson_data, mask_path)
@@ -293,18 +293,18 @@ def get_min_max(tiff):
 
 ### CROP YIELD CALCULATIONS
 
-def cy_calc(geojson_data, input_date, crop, sentinel_data, bbox, width, height, dtype, transform):
+def cy_calc(geojson_data, input_date, crop, sentinel_data, bbox, width, height, dtype, transform,user_id):
     NPP = npp_calc(input_date, sentinel_data, bbox)
     HI = harvest_index_dict(crop)         
     cy = NPP * HI * 10
 
-    cy_path = 'backend/app/main/output_data/CY.tiff'
+    cy_path = fr'C:\Users\ANUBHAV\OneDrive\Desktop\AGRI_DCM\backend\app\main\{user_id}\output_data\CY.tiff'
     with rasterio.open(cy_path, 'w', driver = 'GTiff', width = width, height = height, count = 1, dtype = dtype, crs = rasterioCRS.from_epsg(4326), transform = transform) as dst:
         dst.write(cy, 1)
     clipping_raster(geojson_data, cy_path)
     cy_stats, cy_mean_dict = zonal_stats_calc(geojson_data, cy_path)
     
-    with rasterio.open('backend/app/main/output_data/CY.tiff') as src:
+    with rasterio.open(fr'C:\Users\ANUBHAV\OneDrive\Desktop\AGRI_DCM\backend\app\main\{user_id}\output_data\CY.tiff') as src:
         cy = src.read(1)
     tiff_min_max = get_min_max(cy)
 
@@ -315,10 +315,10 @@ def cy_calc(geojson_data, input_date, crop, sentinel_data, bbox, width, height, 
 
 ### NDVI CALCULATIONS
 
-def ndvi_calc(geojson_data, sentinel_data, width, height, dtype, transform):
+def ndvi_calc(geojson_data, sentinel_data, width, height, dtype, transform,user_id):
     ndvi = sentinel_data['NDVI']
 
-    ndvi_path = 'backend/app/main/output_data/NDVI.tiff'
+    ndvi_path = fr'C:\Users\ANUBHAV\OneDrive\Desktop\AGRI_DCM\backend\app\main\{user_id}\output_data\NDVI.tiff'
     with rasterio.open(ndvi_path, 'w', driver = 'GTiff', width = width, height = height, count = 1, dtype = dtype, crs = rasterioCRS.from_epsg(4326), transform = transform) as dst:
         dst.write(ndvi, 1)
     clipping_raster(geojson_data, ndvi_path)
@@ -331,10 +331,10 @@ def ndvi_calc(geojson_data, sentinel_data, width, height, dtype, transform):
 
 ### LAI CALCULATIONS
 
-def lai_calc(geojson_data, sentinel_data, width, height, dtype, transform):
+def lai_calc(geojson_data, sentinel_data, width, height, dtype, transform,user_id):
     lai = sentinel_data['LAI']
 
-    lai_path = 'backend/app/main/output_data/LAI.tiff'
+    lai_path = fr'C:\Users\ANUBHAV\OneDrive\Desktop\AGRI_DCM\backend\app\main\{user_id}\output_data\LAI.tiff'
     with rasterio.open(lai_path, 'w', driver = 'GTiff', width = width, height = height, count = 1, dtype = dtype, crs = rasterioCRS.from_epsg(4326), transform = transform) as dst:
         dst.write(lai, 1)
     clipping_raster(geojson_data, lai_path)
@@ -752,10 +752,10 @@ def get_data(data):
 
 def generate_tiff(geojson_data, input_date, crop, bbox, extent, user_id):
     sentinel_data, width, height, dtype, transform = sentinel_data_dict(bbox, input_date, extent)
-    cy_stats, cy_mean_dict, tiff_min_max = cy_calc(geojson_data, input_date, crop, sentinel_data, bbox, width, height, dtype, transform)
-    masks_mean_dict = cloud_detector(geojson_data, sentinel_data, width, height, transform)
-    ndvi_mean_dict = ndvi_calc(geojson_data, sentinel_data, width, height, dtype, transform)
-    lai_mean_dict = lai_calc(geojson_data, sentinel_data, width, height, dtype, transform)
+    cy_stats, cy_mean_dict, tiff_min_max = cy_calc(geojson_data, input_date, crop, sentinel_data, bbox, width, height, dtype, transform,user_id)
+    masks_mean_dict = cloud_detector(geojson_data, sentinel_data, width, height, transform,user_id)
+    ndvi_mean_dict = ndvi_calc(geojson_data, sentinel_data, width, height, dtype, transform,user_id)
+    lai_mean_dict = lai_calc(geojson_data, sentinel_data, width, height, dtype, transform,user_id)
 
     print("Tiff generated")
 
@@ -764,12 +764,12 @@ def generate_tiff(geojson_data, input_date, crop, bbox, extent, user_id):
 
 ### FINAL EXCEL GENERATION
 
-def generate_excel(crop, input_date, geojson_data, cy_stats, cy_mean_dict, masks_mean_dict, ndvi_mean_dict, lai_mean_dict):
+def generate_excel(crop, input_date, geojson_data, cy_stats, cy_mean_dict, masks_mean_dict, ndvi_mean_dict, lai_mean_dict,user_id):
     inference = inferencing(crop, input_date, geojson_data, cy_mean_dict, masks_mean_dict, ndvi_mean_dict, lai_mean_dict)
     final_df = pd.DataFrame()
     final_df = excel(cy_stats, inference) ## final excel
     final_df['CROP_YIELD'] = final_df['CROP_YIELD'].round(2)
-    final_df.to_excel('backend/app/main/output_data/CROP_GROWTH.xlsx', index = False)
+    final_df.to_excel(fr'C:\Users\ANUBHAV\OneDrive\Desktop\AGRI_DCM\backend\app\main\{user_id}\output_data\CROP_GROWTH.xlsx', index = False)
 
     print("Excel generated")
     
@@ -798,12 +798,12 @@ def main (data,user_id):
                                                                   crop[0], bbox, extent, user_id)
     
     # generate excel,final_df and related stuff
-    final_df = generate_excel(crop[0], input_date, geojson_data, cy_stats, cy_mean_dict, masks_mean_dict, ndvi_mean_dict, lai_mean_dict)
+    final_df = generate_excel(crop[0], input_date, geojson_data, cy_stats, cy_mean_dict, masks_mean_dict, ndvi_mean_dict, lai_mean_dict,user_id)
 
     ## save result in result_table and get the result_id
     ## send paths of tiff and excel
-    tiff_path = 'backend/app/main/output_data/CY.tiff'
-    excel_path = 'backend/app/main/output_data/CROP_GROWTH.xlsx'
+    tiff_path = fr'C:\Users\ANUBHAV\OneDrive\Desktop\AGRI_DCM\backend\app\main\{user_id}\output_data\CY.tiff'
+    excel_path = fr'C:\Users\ANUBHAV\OneDrive\Desktop\AGRI_DCM\backend\app\main\{user_id}\output_data\CROP_GROWTH.xlsx'
 
     ## save result(excel,tiff,tiff_min_max,project_id) in result_table and get the result_id
     result_id = create_result_entry(user_id, tiff_min_max, data.get('date'), data.get('selectedParameter'), data.get('GeojsonData'),

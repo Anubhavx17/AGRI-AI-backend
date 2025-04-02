@@ -74,6 +74,7 @@ class ResultModel(db.Model):
     geojson = db.Column(db.JSON, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
     graph = db.relationship('GraphModel', backref='result_table', lazy=True)
+    client_active = db.Column(db.Boolean, default=False, nullable=False)
     
     @hybrid_property
     def port_id(self):

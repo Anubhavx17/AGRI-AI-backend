@@ -14,7 +14,7 @@ class ProjectDetailsSchema(Schema):
     farm_area = fields.Str(allow_none=True)  # Added to match the model
     number_of_farms = fields.Str(required=True)  # Added to match the model
 
-class CropStressGraphModelSchema(Schema):
+class GraphModelSchema(Schema):
     id = fields.Int(dump_only=True)
     user_id = fields.Int(dump_only=True)
     unique_farm_id = fields.Str(dump_only=True)
@@ -22,3 +22,4 @@ class CropStressGraphModelSchema(Schema):
     selected_date = fields.Str(required=True)
     selected_parameter = fields.Str(required=True)
     result_details = fields.Str(required=True)
+    inference = fields.Str(required=True)

@@ -75,7 +75,7 @@ def generate_custom_dataframe(final_df, input_date, parameter):
     temp_df['INFERENCE'] = final_df['INFERENCE']
 
     # Create the Result column by combining REDSI and INFERENCE
-    if parameter == 'Crop Stress Biotic':
+    if parameter == 'Crop Stress':
         temp_df['Result'] = final_df['REDSI']
     
     elif parameter == 'Water Stress':
