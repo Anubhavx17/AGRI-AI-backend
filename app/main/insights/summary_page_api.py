@@ -93,7 +93,7 @@ def get_best_worst_farms():
 
      # 2. Convert grouped_results (list of tuples) to a dictionary.
     result_ids_by_param = {param: ids for param, ids in grouped_results}
-    print('result_ids_by_param',result_ids_by_param)
+
 
     # 3. Initialize a dictionary to hold the DataFrames for each parameter.
     graph_model_dfs = {}
@@ -119,6 +119,7 @@ def get_best_worst_farms():
 def best_worst(cs_df,ws_df,cg_df,geojson_data_df):
     print(cs_df.columns)
     df = geojson_data_df
+    print(df,len(df))
     df['CS_COUNT1'] = " "
     df['CS_COUNT2'] = " "
     df['CS_CLOUD_COUNT'] = " "
@@ -181,12 +182,14 @@ def best_worst(cs_df,ws_df,cg_df,geojson_data_df):
     i = 0
     for farm_id, grouped_df_by_farmid in cs_df.groupby('unique_farm_id'):
         # rows = [row1, row2, row3, row4, row5, row6]
+        if(farm_id == 'A0087S01314'):
+            print(grouped_df_by_farmid)
         cs = 0
         cloud_cnt = 0
         count1 = 0
         count2 = 0
         for row in grouped_df_by_farmid.itertuples(index=False):
-            # print(row.STRESS_INFERENCE)
+            
             val, flag = cs_score(row.inference)
             # print(val)
             if val == 1:
@@ -202,6 +205,11 @@ def best_worst(cs_df,ws_df,cg_df,geojson_data_df):
         df['CS_COUNT1'][i] = count1
         df['CS_COUNT2'][i] = count2
         df['CS_CLOUD_COUNT'][i] = cloud_cnt
+
+
+        if(farm_id == 'A0087S01314'):
+            print(count1, count2)
+            print(df['CS_COUNT1'][i], df['CS_COUNT2'][i], df['CS_CLOUD_COUNT'][i])
         if cloud_cnt != len(grouped_df_by_farmid):
             cs = cs / (2 * (len(grouped_df_by_farmid) - cloud_cnt))
             df['CS_SCORE'][i] = round(cs, 3)
@@ -209,6 +217,11 @@ def best_worst(cs_df,ws_df,cg_df,geojson_data_df):
             df['CS_SCORE'][i] = 0
         # print(cs)
         i += 1
+        if(farm_id == 'A0087S01314'):
+            row1 = df[df['FARM_ID'] == 'A0087S01314']['CS_COUNT1']
+            row2 = df[df['FARM_ID'] == 'A0087S01314']['CS_COUNT2']
+            print(row1,row2)
+
 
     i = 0
     for farm_id, grouped_df_by_farmid in cg_df.groupby('unique_farm_id'):
@@ -292,37 +305,10 @@ def best_worst(cs_df,ws_df,cg_df,geojson_data_df):
             df['FARM_SCORE'][i] = 0
 
 
-    df = df.sort_values(by=['FARM_SCORE', 'CS_SCORE', 'WS_SCORE', 'CG_SCORE'],ascending=[False, False, False, False])
+    # Sort the DataFrame by the given scores (descending order)
+    df = df.sort_values(by=['FARM_SCORE', 'CS_SCORE', 'WS_SCORE', 'CG_SCORE'],
+                        ascending=[False, False, False, False])
     mean_score = df['FARM_SCORE'].sum() / len(df)
-    
-    # Get top 5 (worst) and bottom 5 (best) rows, higher the farm_score worst it is
-    top5_df = df.tail(5)
-    worst5_df = df.head(5)
-
-    # Extract the FARM_ID column (ensure FARM_ID exists in df)
-    top5_ids = top5_df['FARM_ID'].tolist()
-    worst5_ids = worst5_df['FARM_ID'].tolist()
-
-    print("Top 5 best farm IDs:", top5_ids)
-    print("Top 5 worst farm IDs:", worst5_ids)
-
-    # Initialize dictionaries for geojson results
-    top5_geojson = {}
-    worst5_geojson = {}
-
-    # For each farm_id in top 5 best, fetch its geojson from the GraphModel table.
-    for farm_id in top5_ids:
-        # Convert farm_id to string if needed.
-        graph_row = GraphModel.query.filter_by(unique_farm_id=str(farm_id)).first()
-        if graph_row:
-            top5_geojson[farm_id] = graph_row.geojson
-
-    # For each farm_id in bottom 5 (worst), fetch its geojson.
-    for farm_id in worst5_ids:
-        graph_row = GraphModel.query.filter_by(unique_farm_id=str(farm_id)).first()
-        if graph_row:
-            worst5_geojson[farm_id] = graph_row.geojson
-
 
     print(mean_score)
     if mean_score < 0.34:
@@ -335,13 +321,86 @@ def best_worst(cs_df,ws_df,cg_df,geojson_data_df):
         print("Good") 
         mean_score = 'Good'
 
-    # df.to_excel(r'C:\Users\ANUBHAV\OneDrive\Desktop\AGRI_DCM\backend\app\main\insights\FINAL4.xlsx', index = False)
+    # For best farms (bottom 5 rows after sorting), include FARM_ID
+    best_subset = df.tail(5)[['FARM_ID', 'WS_COUNT1', 'CG_COUNT1', 'CS_COUNT1']]
+    print("Best Farms (FARM_ID, WS_COUNT1, CG_COUNT1, CS_COUNT1):")
+    print(best_subset)
+
+    # For worst farms (top 5 rows after sorting), include FARM_ID
+    worst_subset = df.head(5)[['FARM_ID', 'WS_COUNT3', 'CG_COUNT3', 'CS_COUNT2']]
+    print("Worst Farms (FARM_ID, WS_COUNT3, CG_COUNT3, CS_COUNT2):")
+    print(worst_subset)
+
+
+    # Get bottom 5 rows (best farms with lower FARM_SCORE) and top 5 rows (worst farms)
+    top5_df = df.tail(5)      # Best farms (lower scores)
+    worst5_df = df.head(5)    # Worst farms (higher scores)
+
+    # Extract FARM_ID lists from both DataFrames
+    top5_ids = top5_df['FARM_ID'].tolist()    # Best farm IDs
+    worst5_ids = worst5_df['FARM_ID'].tolist()  # Worst farm IDs
+
+    print("Top 5 best farm IDs:", top5_ids)
+    print("Top 5 worst farm IDs:", worst5_ids)
+
+    # Initialize dictionaries for geojson results
+    top5_geojson = {}
+    worst5_geojson = {}
+
+    # For each best farm_id, fetch its geojson from the GraphModel table.
+    for farm_id in top5_ids:
+        graph_row = GraphModel.query.filter_by(unique_farm_id=str(farm_id)).first()
+        if graph_row:
+            top5_geojson[farm_id] = graph_row.geojson
+
+    # For each worst farm_id, fetch its geojson.
+    for farm_id in worst5_ids:
+        graph_row = GraphModel.query.filter_by(unique_farm_id=str(farm_id)).first()
+        if graph_row:
+            worst5_geojson[farm_id] = graph_row.geojson
+
+    # Define the columns to retrieve for each category
+    best_columns = ['WS_COUNT1', 'CG_COUNT1', 'CS_COUNT1']
+    worst_columns = ['WS_COUNT3', 'CG_COUNT3', 'CS_COUNT2']
+
+    # Create dictionaries to store the count values for each farm.
+    # For best farms (using best_columns) and worst farms (using worst_columns)
+    best_farm_values = {}
+    worst_farm_values = {}
+
+    # Process best farms (those in top5_ids, i.e. best farms)
+    for _, row in df[df['FARM_ID'].isin(top5_ids)].iterrows():
+        temp = {
+            'ws': row['WS_COUNT1'],
+            'cg': row['CG_COUNT1'],
+            'cs': row['CS_COUNT1']
+        }
+        best_farm_values[row['FARM_ID']] = temp
+
+    # Process worst farms (those in worst5_ids, i.e. worst farms)
+    for _, row in df[df['FARM_ID'].isin(worst5_ids)].iterrows():
+        temp = {
+            'ws': row['WS_COUNT3'],
+            'cg': row['CG_COUNT3'],
+            'cs': row['CS_COUNT2']
+        }
+        worst_farm_values[row['FARM_ID']] = temp
+
+    print("Best Farm Values:")
+    print(best_farm_values)
+    print("\nWorst Farm Values:")
+    print(worst_farm_values)
+
+
+    df.to_excel(r'C:\Users\ANUBHAV\OneDrive\Desktop\AGRI_DCM\backend\app\main\insights\FINAL5.xlsx', index = False)
     
     best_worst_list = []
     best_worst_list.append({
             "top_5": top5_geojson,
             "worst_5": worst5_geojson,
-            "farm_health": mean_score
+            "farm_health": mean_score,
+            "best_farm_values":best_farm_values,
+            "worst_farm_values":worst_farm_values
         })
 
     return best_worst_list
